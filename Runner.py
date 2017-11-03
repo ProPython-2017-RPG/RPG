@@ -7,7 +7,7 @@ import math
 
 
 class Player:
-    def __init__(self, img, position=(0, 0)):
+    def __init__(self, img, position=(16, 16)):
         anim_types = ['front', 'left', 'right', 'back']
         self.anim_objs = {}
         self.standing = {}
@@ -18,7 +18,6 @@ class Player:
             self.standing[anim_type] = all_images[1]
             frames = list(zip(all_images, [100] * len(all_images)))
             self.anim_objs[anim_type] = pyganim.PygAnimation(frames)
-            self.anim_objs[anim_type].play()
             i += 1
 
         self.move_conductor = pyganim.PygConductor(self.anim_objs)
@@ -50,6 +49,35 @@ class Player:
         elif self.pos_y + dy + 32 > height:
             self.pos_y = height - 32
             dy = 0
+
+        return dx, dy
+
+    def check_collision(self, dx, dy, coll_layer):
+
+        step_dx = (int((self.pos_x + dx) // 32), int(self.pos_y // 32))
+        if dx > 0:
+            if coll_layer.content2D[step_dx[1]][step_dx[0] + 1] is not None or \
+                            coll_layer.content2D[step_dx[1] + 1][step_dx[0] + 1] is not None:
+                dx = 0
+                self.pos_x = step_dx[0] * 32 - 1
+        elif dx < 0:
+            if coll_layer.content2D[step_dx[1]][step_dx[0]] is not None or \
+                            coll_layer.content2D[step_dx[1] + 1][step_dx[0]] is not None:
+                dx = 0
+                self.pos_x = step_dx[0] * 32 + 32 + 1
+
+        step_dy = (int(self.pos_x // 32), int((self.pos_y + dy) // 32))
+        if dy > 0:
+            if coll_layer.content2D[step_dy[1] + 1][step_dy[0]] is not None or \
+                            coll_layer.content2D[step_dy[1] + 1][step_dy[0] + 1] is not None:
+                dy = 0
+                self.pos_y = step_dy[1] * 32 - 1
+        elif dy < 0:
+            if coll_layer.content2D[step_dy[1]][step_dy[0]] is not None or \
+                            coll_layer.content2D[step_dy[1]][step_dy[0] + 1] is not None:
+                dy = 0
+                self.pos_y = step_dy[1] * 32 + 32 + 1
+
         return dx, dy
 
 
@@ -189,7 +217,8 @@ def demo(file_name):
                     if move_right:
                         dx += rate
 
-                    dx, dy = P.check_pos(screen_width, screen_height, dx, dy)
+                    dx, dy = P.check_collision(dx, dy, sprite_layers[5])
+
                 else:
                     P.move_conductor.stop()
                     screen.blit(P.standing[direction], (304, 304))
