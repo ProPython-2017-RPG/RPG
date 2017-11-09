@@ -4,18 +4,22 @@ import pyganim
 import tiledtmxloader
 
 import math
+import time
 
+FPS = 0
 
 class Player:
-    def __init__(self, img, position=(16, 16)):
+    def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
+        self.img_width = width
+        self.img_height = height
         anim_types = ['front', 'left', 'right', 'back']
         self.anim_objs = {}
         self.standing = {}
         i = 0
         for anim_type in anim_types:
-            rects = [(num * 32, i * 32, 32, 32) for num in range(3)]
+            rects = [(num * width, i * height, width, height) for num in range(num)]
             all_images = pyganim.getImagesFromSpriteSheet(img, rects=rects)
-            self.standing[anim_type] = all_images[1]
+            self.standing[anim_type] = all_images[st]
             frames = list(zip(all_images, [100] * len(all_images)))
             self.anim_objs[anim_type] = pyganim.PygAnimation(frames)
             i += 1
@@ -34,49 +38,41 @@ class Player:
         return self.pos_x, self.pos_y
 
     def get_pos_cam(self):
-        return self.pos_x + 16, self.pos_y + 16
-
-    def check_pos(self, width, height, dx, dy):
-        if self.pos_x + dx < 0:
-            self.pos_x = 0
-            dx = 0
-        elif self.pos_x + dx + 32 > width:
-            self.pos_x = width - 32
-            dx = 0
-        if self.pos_y + dy < 0:
-            self.pos_y = 0
-            dy = 0
-        elif self.pos_y + dy + 32 > height:
-            self.pos_y = height - 32
-            dy = 0
-
-        return dx, dy
+        return self.pos_x + self.img_width/2, self.pos_y + self.img_height/2
 
     def check_collision(self, dx, dy, coll_layer):
+        if dx >= 32 or dy >= 32:
+            return 0, 0
+        left = int((self.pos_x + dx) // 32)
+        right = int((self.pos_x + dx + self.img_width) // 32)
+        up = int(self.pos_y // 32)
+        down = int((self.pos_y + self.img_height) // 32)
 
-        step_dx = (int((self.pos_x + dx) // 32), int(self.pos_y // 32))
         if dx > 0:
-            if coll_layer.content2D[step_dx[1]][step_dx[0] + 1] is not None or \
-                            coll_layer.content2D[step_dx[1] + 1][step_dx[0] + 1] is not None:
+            if coll_layer.content2D[up][right] is not None or \
+                            coll_layer.content2D[down][right] is not None:
                 dx = 0
-                self.pos_x = step_dx[0] * 32 - 1
+                self.pos_x = right * 32 - self.img_width - 1
         elif dx < 0:
-            if coll_layer.content2D[step_dx[1]][step_dx[0]] is not None or \
-                            coll_layer.content2D[step_dx[1] + 1][step_dx[0]] is not None:
+            if coll_layer.content2D[up][left] is not None or \
+                            coll_layer.content2D[down][left] is not None:
                 dx = 0
-                self.pos_x = step_dx[0] * 32 + 32 + 1
+                self.pos_x = (left + 1) * 32 + 1
 
-        step_dy = (int(self.pos_x // 32), int((self.pos_y + dy) // 32))
+        left = int(self.pos_x // 32)
+        right = int((self.pos_x + self.img_width) // 32)
+        up = int((self.pos_y + dy) // 32)
+        down = int((self.pos_y + dy + self.img_height) // 32)
         if dy > 0:
-            if coll_layer.content2D[step_dy[1] + 1][step_dy[0]] is not None or \
-                            coll_layer.content2D[step_dy[1] + 1][step_dy[0] + 1] is not None:
+            if coll_layer.content2D[down][left] is not None or \
+                            coll_layer.content2D[down][right] is not None:
                 dy = 0
-                self.pos_y = step_dy[1] * 32 - 1
+                self.pos_y = down * 32 - self.img_height - 1
         elif dy < 0:
-            if coll_layer.content2D[step_dy[1]][step_dy[0]] is not None or \
-                            coll_layer.content2D[step_dy[1]][step_dy[0] + 1] is not None:
+            if coll_layer.content2D[up][left] is not None or \
+                            coll_layer.content2D[up][right] is not None:
                 dy = 0
-                self.pos_y = step_dy[1] * 32 + 32 + 1
+                self.pos_y = (up + 1) * 32 + 1
 
         return dx, dy
 
@@ -103,8 +99,16 @@ def demo(file_name):
     # renderer
     renderer = tiledtmxloader.helperspygame.RendererPygame()
 
-    P = Player('IMG/Hero/ch1.png', (screen_width // 2, screen_height // 2))
-    P.move_conductor.play()
+    # P = Player('IMG/Hero/Neko.png', (world_map.pixel_width // 2, world_map.pixel_height // 2), 32, 48, 4, 0)
+    # P = Player('IMG/Hero/Usagi.png', (world_map.pixel_width //2, world_map.pixel_height//2), 32, 48, 4, 0)
+    # P = Player('IMG/Hero/Rect.png', (world_map.pixel_width // 2, world_map.pixel_height // 2), 32, 48, 4, 0)
+    # P = Player('IMG/Hero/Snake.png', (world_map.pixel_width // 2, world_map.pixel_height // 2), 48, 48, 4, 0)
+    P = Player('IMG/Hero/Healer.png', (world_map.pixel_width // 2, world_map.pixel_height // 2), 32, 32, 3, 1)
+    # other_Players = [Player('IMG/Hero/Neko.png', (world_map.pixel_width//2 - 50, world_map.pixel_height//2), 32, 48, 4, 0)]
+    # other_Players[0].move_conductor.play()
+    center_x = (screen_width - P.img_width) // 2
+    center_y = (screen_height - P.img_height) // 2
+    # P.move_conductor.play()
 
     # set initial cam position and size
     cam_pos_x = screen_width // 2
@@ -122,115 +126,93 @@ def demo(file_name):
 
     clock = pygame.time.Clock()
     running = False
-    run_rate = 10
-    walk_rate = 4
+    run_rate = 0.45
+    walk_rate = 0.15
     dx = dy = 0
 
-    move_up = move_down = move_left = move_right = False
     direction = 'front'
-
+    pygame.time.set_timer(pygame.USEREVENT, 1000)
     # mainloop
     done = True
     while done:
-        screen.fill((0, 0, 0))
+        dt = clock.tick(FPS)
+
         # event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 done = False
+            elif event.type == pygame.USEREVENT:
+                print("fps: ", clock.get_fps())
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     done = False
                 if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                     running = True
-                if event.key == pygame.K_UP:
-                    move_up = True
-                    move_down = False
-                    if not move_left and not move_right:
-                        direction = 'back'
-                elif event.key == pygame.K_DOWN:
-                    move_up = False
-                    move_down = True
-                    if not move_left and not move_right:
-                        direction = 'front'
-                elif event.key == pygame.K_LEFT:
-                    move_left = True
-                    move_right = False
-                    if not move_up and not move_down:
-                        direction = 'left'
-                elif event.key == pygame.K_RIGHT:
-                    move_left = False
-                    move_right = True
-                    if not move_up and not move_down:
-                        direction = 'right'
 
             elif event.type == pygame.KEYUP:
                 if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                     running = False
-                if event.key == pygame.K_UP:
-                    move_up = False
-                    if move_left:
-                        direction = 'left'
-                    if move_right:
-                        direction = 'right'
-                elif event.key == pygame.K_DOWN:
-                    move_down = False
-                    if move_left:
-                        direction = 'left'
-                    if move_right:
-                        direction = 'right'
-                elif event.key == pygame.K_LEFT:
-                    move_left = False
-                    if move_up:
-                        direction = 'back'
-                    if move_down:
-                        direction = 'front'
-                elif event.key == pygame.K_RIGHT:
-                    move_right = False
-                    if move_up:
-                        direction = 'back'
-                    if move_down:
-                        direction = 'front'
+        if running:
+            rate = run_rate
+        else:
+            rate = walk_rate
+
+        direction_x = pygame.key.get_pressed()[pygame.K_RIGHT] - \
+                              pygame.key.get_pressed()[pygame.K_LEFT]
+        direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
+                              pygame.key.get_pressed()[pygame.K_UP]
+
+        if direction_y == 1:
+            direction = 'front'
+        elif direction_y == -1:
+            direction = 'back'
+        if direction_x == 1:
+            direction = 'right'
+        elif direction_x == -1:
+            direction = 'left'
+
+        dir_len = math.hypot(direction_x, direction_y)
+        dir_len = dir_len if dir_len else 1.0
+        # update position
+        dx = rate * dt * direction_x / dir_len
+        dy = rate * dt * direction_y / dir_len
+        dx, dy = P.check_collision(dx, dy, sprite_layers[6])
 
         # render the map
+        screen.fill((0, 0, 0))
         i = 0
         for sprite_layer in sprite_layers:
             renderer.render_layer(screen, sprite_layer)
-            if i == 3:
-                if move_up or move_down or move_left or move_right:
+            if i == 4:
+                if direction_x or direction_y:
                     P.move(dx, dy)
                     P.move_conductor.play()
-                    P.anim_objs[direction].blit(screen, (304, 304))
+                    P.anim_objs[direction].blit(screen, (center_x, center_y))
                     # P.anim_objs[direction].blit(screen, P.get_pos())
-
-                    if running:
-                        rate = run_rate
-                    else:
-                        rate = walk_rate
-
-                    dx = dy = 0
-                    if move_up:
-                        dy -= rate
-                    if move_down:
-                        dy += rate
-                    if move_left:
-                        dx -= rate
-                    if move_right:
-                        dx += rate
-
-                    dx, dy = P.check_collision(dx, dy, sprite_layers[5])
 
                 else:
                     P.move_conductor.stop()
-                    screen.blit(P.standing[direction], (304, 304))
+                    screen.blit(P.standing[direction], (center_x, center_y))
                     # screen.blit(P.standing[direction], P.get_pos())
+
+                # for op in other_Players:
+                #     if direction_x or direction_y:
+                #         op.move(dx, dy)
+                #         op.move_conductor.play()
+                #         op.anim_objs[direction].blit(screen, (center_x - 50, center_y))
+                #         # P.anim_objs[direction].blit(screen, P.get_pos())
+                #
+                #     else:
+                #         op.move_conductor.stop()
+                #         screen.blit(op.standing[direction], (center_x - 50, center_y))
+                #         # screen.blit(P.standing[direction], P.get_pos())
             i += 1
 
         # adjust camera according to the hero's position, follow him
         cam_pos_x, cam_pos_y = P.get_pos_cam()
         renderer.set_camera_position(cam_pos_x, cam_pos_y)
 
-        pygame.display.update()
-        clock.tick(60)
+        pygame.display.flip()
 
 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
