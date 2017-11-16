@@ -1,5 +1,5 @@
 
-from classesnew import *
+from classes import *
 from battlescene import *
 
 

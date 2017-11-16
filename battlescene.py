@@ -19,7 +19,6 @@ class Action:           # это архитектура из той статьи
 
 class BattleScene(Action):
     def __init__(self, player, enemy, first_step):
-        self.next = self
         self.player = player
         self.enemy = enemy
         self.step = first_step  # ход игрок или комп
@@ -27,8 +26,8 @@ class BattleScene(Action):
         self.attack_pos = 0  # индекс выбранного типа атаки из существующих
         self.enemy_pos = 0 # индекс выбранного противника
         self.func_pos = 0
-        self.menu_res = [None, None, None]
         self.pressed = False
+        self.menu_res = {'hero': None, 'atk': None, 'monster': None}
         self.flag = None  # указавает текущий пункт меню
         self.done = False  # True если выбор в меню окончен(клавиша d) и затем переход к расчету битвы
         Action.__init__(self)
@@ -42,10 +41,10 @@ class BattleScene(Action):
             if event.type == pygame.KEYDOWN and event.key == pygame.K_UP and abs(self.hero_pos) < len(self.player.heroes):
                 self.hero_pos -= 1
                 choice = self.player.heroes[self.hero_pos]
+        choice.attack_list_filter()
         return choice
 
     def attack_choice(self, events, hero):  # выбор типа атаки
-        hero.attack_list_filter()
         choice = list(hero.at_list.keys())[self.attack_pos]
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN and self.attack_pos < len(list(hero.at_list.keys())) - 1:
@@ -55,7 +54,6 @@ class BattleScene(Action):
             if event.type == pygame.KEYDOWN and event.key == pygame.K_UP and abs(self.attack_pos) < len(list(hero.at_list.keys())):
                 self.attack_pos -= 1
                 choice = list(hero.at_list.keys())[self.attack_pos]
-
         return choice
 
     def monster_choice(self, events):  # выбор монстра для атаки
@@ -73,50 +71,46 @@ class BattleScene(Action):
 
     def menu(self, events, pressed):
         if self.func_pos == 0 and self.flag != 'hero':
-            self.menu_res[0] = self.hero_choice(events)
-        for event in events:
-            if (event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT and self.func_pos == 0 and self.pressed is False) \
-                 or (self.flag == 'atk' and event.key != pygame.K_LEFT and event.key != pygame.K_RIGHT and event.key != pygame.K_d):
-                self.func_pos = 1
-                self.pressed = True
-                if self.flag == 'atk':
-                    self.pressed = False
-                self.flag = 'atk'
-                self.menu_res[1] = self.attack_choice(events, self.menu_res[0])
-                break
-            if (event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT and self.func_pos == 1 and self.pressed is False) \
-                    or (self.flag == 'mns' and event.key != pygame.K_RIGHT and event.key != pygame.K_d ):
-                self.func_pos = 2
-                self.pressed = True
-                if self.flag == 'mns':
-                    self.pressed = False
-                self.flag = 'mns'
-                self.menu_res[2] = self.monster_choice(events)
-                break
-            if (event.type == pygame.KEYDOWN and event.key == pygame.K_RIGHT and self.func_pos == 2 and self.pressed is False) \
-                    or (self.flag == 'atk' and event.key != pygame.K_LEFT and event.key != pygame.K_RIGHT and event.key != pygame.K_d):
-                self.func_pos = 1
-                self.pressed = True
-                if self.flag == 'atk':
-                    self.pressed = False
-                self.flag = 'atk'
-                self.menu_res[1] = self.attack_choice(events, self.menu_res[0])
-                break
-            if (event.type == pygame.KEYDOWN and event.key == pygame.K_RIGHT and self.func_pos == 1 and self.pressed is False) \
-                    or (self.flag == 'hero' and event.key != pygame.K_LEFT and event.key != pygame.K_d):
-                self.func_pos = 0
-                self.pressed = True
-                if self.flag == 'hero':
-                    self.pressed = False
-                self.flag = 'hero'
-                self.menu_res[0] = self.hero_choice(events)
-                break
+            self.menu_res['hero'] = self.hero_choice(events)
 
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_d:
-                if None not in self.menu_res and self.flag != 'hero':
-                    self.done = True
-                    break
-        self.pressed = False
+        if (pressed[pygame.K_LEFT] and self.func_pos == 0 and self.pressed is False ) or (self.flag == 'atk'
+                 and pressed[pygame.K_LEFT] != 1 and pressed[pygame.K_RIGHT] != 1 and pressed[pygame.K_d] != 1):
+            self.func_pos = 1
+            self.pressed = True
+            if self.flag == 'atk':
+                self.pressed = False
+            self.flag = 'atk'
+            self.menu_res['atk'] = self.attack_choice(events, self.menu_res['hero'])
+
+        if (pressed[pygame.K_LEFT] and self.func_pos == 1 and self.pressed is False ) \
+                or (self.flag == 'mns' and pressed[pygame.K_RIGHT] != 1 and pressed[pygame.K_d] != 1):
+            self.func_pos = 2
+            self.pressed = True
+            if self.flag == 'mns':
+                self.pressed = False
+            self.flag = 'mns'
+            self.menu_res['monster'] = self.monster_choice(events)
+        if (pressed[pygame.K_RIGHT] and self.func_pos == 2 and self.pressed is False ) or (self.flag == 'atk'
+                and pressed[pygame.K_LEFT] is False and pressed[pygame.K_RIGHT] != 1 and pressed[pygame.K_d] != 1):
+            self.func_pos = 1
+            self.pressed = True
+            if self.flag == 'atk':
+                self.pressed = False
+            self.flag = 'atk'
+            self.menu_res['atk'] = self.attack_choice(events, self.menu_res['hero'])
+
+        if (pressed[pygame.K_RIGHT] and self.func_pos == 1 and self.pressed is False) \
+                or (self.flag == 'hero' and pressed[pygame.K_LEFT] != 1 and pressed[pygame.K_d] != 1):
+            self.func_pos = 0
+            self.pressed = True
+            if self.flag == 'hero':
+                self.pressed = False
+            self.flag = 'hero'
+            self.menu_res['hero'] = self.hero_choice(events)
+
+        if pressed[pygame.K_d]:
+            if None not in self.menu_res.values() and self.menu_res['atk'] in self.menu_res['hero'].at_list:
+                self.done = True
 
     def process_input(self, events, pressed):
         # логика меню
@@ -124,31 +118,56 @@ class BattleScene(Action):
             if event.type != pygame.KEYDOWN:
                 events.remove(event)
         self.menu(events, pressed)
-        print(self.menu_res,self.attack_pos)
+        print('{}  {}  {}'.format(self.menu_res['hero'], self.menu_res['atk'], self.menu_res['monster']))
 
     def update(self, events):  # атака
 
         if self.step == 'player' and self.done is True:
-            self.player.get_alive_heroes()[self.hero_pos].attack(self.enemy.monsters[self.enemy_pos], self.menu_res[1])
-            print('hero ', self.menu_res[0])
-            print('hero attack ', self.menu_res[1])
-            print('hero sp ', self.menu_res[0].sp)
-            print('hero mp ', self.menu_res[0].mp)
-            print('monster ', self.menu_res[2])
-            print('monster hp ', self.menu_res[2].hp)
-            print('monster sp ', self.menu_res[2].sp)
-            print('monster mp ', self.menu_res[2].mp)
+            self.menu_res['hero'].attack(self.menu_res['monster'], self.menu_res['atk'])
+            print('hero ', self.menu_res['hero'])
+            print('hero attack ', self.menu_res['atk'])
+            print('hero sp ', self.menu_res['hero'].sp)
+            print('hero mp ', self.menu_res['hero'].mp)
+            print('monster ', self.menu_res['monster'])
+            print('monster hp ', self.menu_res['monster'].hp)
+            print('monster sp ', self.menu_res['monster'].sp)
+            print('monster mp ', self.menu_res['monster'].mp)
 
-            time.sleep(5)  # где то здесь должна быть анимация
-
+            time.sleep(3)  # где то здесь должна быть анимация
             self.next = None
+            #self.menu_res = {'hero': None, 'atk': None, 'monster': None}
         # if self.step == 'enemy':
         #     monster = self.enemy.choose_random_monster()    # ход компа
         #     monster.attack(self.player.get_alive_heroes())
-            return
 
     def render(self, screen):
-        screen.fill((0, 0, 255))  # здесь идет отрисовка сцены с соотв менюхой и персонажами
+        screen.fill((100, 100, 100))
+        i = 0
+        for hero in self.player.get_alive_heroes():
+            font = pygame.font.SysFont("comicsansms", 40)
+            text = font.render(hero.name, True, (0, 0, 0))
+            if hero == self.menu_res['hero']:
+                text = font.render(hero.name, True, (0, 255, 0))
+            screen.blit(text, (450 - text.get_width() // 2, 600 + i - text.get_height() // 2))
+            i += 30
+        j = 0
+        for attack in self.menu_res['hero'].at_list.items():
+            font = pygame.font.SysFont("comicsansms", 40)
+            text = font.render(attack[0]+'  '+str(attack[1]['size']), True, (0, 0, 0))
+            if attack[0] == self.menu_res['atk']:
+                text = font.render(attack[0]+'  '+str(attack[1]['size']), True, (0, 0, 255))
+            screen.blit(text, (300 - text.get_width() // 2, 600 + j - text.get_height() // 2))
+            j += 30
+        k = 0
+        for monster in self.enemy.get_alive_monsters():
+            font = pygame.font.SysFont("comicsansms", 40)
+            text = font.render(monster.name+' '+str(monster.hp), True, (0, 0, 0))
+            if monster == self.menu_res['monster']:
+                text = font.render(monster.name+' '+str(monster.hp), True, (255, 0, 0))
+            screen.blit(text, (150 - text.get_width() // 2, 600 + k - text.get_height() // 2))
+            k += 30
+
+        # здесь идет отрисовка сцены с соотв менюхой и персонажами
 
 
 
