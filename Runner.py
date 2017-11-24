@@ -4,7 +4,8 @@ import pyganim
 import tiledtmxloader
 
 import math
-import time
+import socket
+import threading
 
 FPS = 0
 
@@ -19,6 +20,8 @@ CEN_X = WIDTH // 2 - 16
 CEN_Y = HEIGHT // 2 - 16
 
 STACK = []
+FLAG = [True]
+
 
 class Player:
     def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
@@ -31,6 +34,7 @@ class Player:
         for anim_type in anim_types:
             rects = [(num * width, i * height, width, height) for num in range(num)]
             all_images = pyganim.getImagesFromSpriteSheet(img, rects=rects)
+            all_images = list(map(lambda x: x.convert_alpha(), all_images))
             self.standing[anim_type] = all_images[st]
             frames = list(zip(all_images, [100] * len(all_images)))
             self.anim_objs[anim_type] = pyganim.PygAnimation(frames)
@@ -47,6 +51,8 @@ class Player:
 
         self.run_rate = 0.45
         self.walk_rate = 0.15
+
+        self.level = 0
 
     def move(self, dx, dy):
         self.pos_x += dx
@@ -94,6 +100,16 @@ class Player:
         return dx, dy
 
 
+class Friend(Player):
+    def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
+        super().__init__(img, position, width, height, num, st)
+        self.dir = 'front'
+        self.flag = False
+
+    def cord(self, player: Player):
+        return CEN_X - (player.pos_x - self.pos_x), CEN_Y - (player.pos_y - self.pos_y)
+
+
 class Map:
     def __init__(self, file_name, surface):
         self.surface = surface
@@ -137,19 +153,19 @@ class Map:
 
         self.done = False
 
-    def check_obj(self, player: Player):
+    def check_obj(self, player: Player, other: Friend):
         x = player.pos_x + player.center_x_const
         y = player.pos_y + player.center_y_const
         for obj in self.obj_layers[0].objects:
             if x > obj.x and x < obj.x + obj.width and y > obj.y and y < obj.y + obj.height:
                 if obj.type == "Gate":
-                    print("Gate")
+                    player.level += 1
                     STACK.append((int(obj.properties["pos_x"]) * self.tile_width,
                                   int(obj.properties["pos_y"]) * self.tile_height))
-                    Tent.run(player)
+                    Tent.run(player, other)
                     break
                 if obj.type == "Exit":
-                    print("Exit")
+                    player.level -= 1
                     self.done = False
                     player.pos_x, player.pos_y = STACK.pop()
                     break
@@ -158,26 +174,34 @@ class Map:
         player.pos_x = self.start_x * self.tile_width
         player.pos_y = self.start_y * self.tile_height
 
-    def run(self, player: Player):
+    def run(self, player: Player, other: Friend):
         self.start_pos_hero(player)
         clock = pygame.time.Clock()
         pygame.time.set_timer(pygame.USEREVENT, 1000)
         running = False
         direction = 'front'
+        direction_x = direction_y = 0
         self.done = True
         while self.done:
             dt = clock.tick(FPS)
+
+            # Отправка
+            sock.sendto(bytes(str((player.pos_x, player.pos_y, direction,
+                                   not direction_x == direction_y == 0, player.level)), encoding="utf-8"),
+                        (HOST, 8080))
 
             # event handing
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.done = False
+                    FLAG[0] = False
                 elif event.type == pygame.USEREVENT:
                     print("FPS: ", clock.get_fps())
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.done = False
-                    if event.key == (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                        FLAG[0] = False
+                    if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                         running = True
 
                 elif event.type == pygame.KEYUP:
@@ -208,13 +232,20 @@ class Map:
             dy = rate * dt * direction_y / dir_len
             dx, dy = player.check_collision(dx, dy, self.collision)
 
-            self.check_obj(player)
+            self.check_obj(player, other)
 
             self.surface.fill((0, 0, 0))
             i = 0
             for layer in self.layers:
                 self.renderer.render_layer(self.surface, layer)
                 if i == self.layer_player:
+                    if other.level == player.level:
+                        if other.flag:
+                            other.move_conductor.play()
+                            other.anim_objs[other.dir].blit(self.surface, other.cord(player))
+                        else:
+                            other.move_conductor.stop()
+                            self.surface.blit(other.standing[other.dir], other.cord(player))
                     if direction_x or direction_y:
                         player.move_conductor.play()
                         player.move(dx, dy)
@@ -228,15 +259,32 @@ class Map:
 
             pygame.display.flip()
 
+
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
+def Listen(other: Friend):
+    while FLAG[0]:
+        data, _ = sock.recvfrom(1024)
+        other.pos_x, other.pos_y, other.dir, other.flag, other.level = eval(data)
+
+
 if __name__ == "__main__":
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    HOST = "127.0.0.1"
+    PORT = int(input())
+    sock.bind((HOST, PORT))
+
     pygame.init()
     pygame.display.set_caption('RPG')
     screen_width = WIDTH
     screen_height = HEIGHT
     screen = pygame.display.set_mode((screen_width, screen_height))
     P = Player('IMG/Hero/Healer.png', (0, 0), 32, 32, 3, 1)
+    F = Friend('IMG/Hero/Healer.png', (0, 0), 32, 32, 3, 1)
+
     Tent = Map('TilesMap/Tent.tmx', screen)
     Test_1 = Map('TilesMap/Test_1.tmx', screen)
-    Test_1.run(P)
+
+    threading.Thread(target=Test_1.run, args=(P, F)).start()
+    threading.Thread(target=Listen, args=(F,)).start()
+
