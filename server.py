@@ -13,7 +13,11 @@ B = None
 print('Start Serve')
 
 while True:
-    data, addr = sock.recvfrom(1024)
+
+    try:
+        data, addr = sock.recvfrom(1024)
+    except:
+        break
 
     if A is None:
         A = addr
@@ -24,3 +28,5 @@ while True:
         sock.sendto(data, B)
     elif addr == B and A is not None:
         sock.sendto(data, A)
+
+print('Close Serve')

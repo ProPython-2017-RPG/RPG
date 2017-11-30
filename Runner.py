@@ -1,53 +1,48 @@
 import pygame
 import pyganim
-
 import tiledtmxloader
-
 import math
 import socket
 import threading
 
-FPS = 0
-
-UP = 16
-DOWN = 0
-LEFT = 2
-RIGHT = 2
-
+FPS = 60
 WIDTH = 1024
 HEIGHT = 768
 CEN_X = WIDTH // 2 - 16
 CEN_Y = HEIGHT // 2 - 16
-
 STACK = []
 FLAG = [True]
 
 
 class Player:
-    def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
+    def __init__(self, img: str, position=(16, 16), width=32, height=32, num=3, st=0, rect_coll=(16, 0, 2, 2)):
         self.img_width = width
         self.img_height = height
-        anim_types = ['front', 'left', 'right', 'back']
-        self.anim_objs = {}
-        self.standing = {}
-        i = 0
-        for anim_type in anim_types:
+
+        self.UP = rect_coll[0]
+        self.DOWN = rect_coll[1]
+        self.LEFT = rect_coll[2]
+        self.RIGHT = rect_coll[3]
+
+        self.anim_objs = [None]*4
+        self.standing = [None]*4
+        # 0-front, 1-left, 2-right, 3-back
+        for i in range(4):
             rects = [(num * width, i * height, width, height) for num in range(num)]
             all_images = pyganim.getImagesFromSpriteSheet(img, rects=rects)
             all_images = list(map(lambda x: x.convert_alpha(), all_images))
-            self.standing[anim_type] = all_images[st]
-            frames = list(zip(all_images, [100] * len(all_images)))
-            self.anim_objs[anim_type] = pyganim.PygAnimation(frames)
-            i += 1
+            self.standing[i] = all_images[st]
+            frames = list(zip(all_images, [120] * len(all_images)))
+            self.anim_objs[i] = pyganim.PygAnimation(frames)
 
         self.move_conductor = pyganim.PygConductor(self.anim_objs)
 
         self.pos_x, self.pos_y = position
-        self.pos_x -= self.standing['front'].get_width() / 2
-        self.pos_y -= self.standing['front'].get_height() / 2
+        self.pos_x -= self.img_width / 2
+        self.pos_y -= self.img_height / 2
 
-        self.center_x_const = LEFT + (self.img_width - LEFT - RIGHT) // 2
-        self.center_y_const = UP + (self.img_height - UP - DOWN) // 2
+        self.center_x_const = self.LEFT + (self.img_width - self.LEFT - self.RIGHT) // 2
+        self.center_y_const = self.UP + (self.img_height - self.UP - self.DOWN) // 2
 
         self.run_rate = 0.45
         self.walk_rate = 0.15
@@ -67,47 +62,65 @@ class Player:
     def check_collision(self, dx, dy, coll_layer):
         if dx >= 32 or dy >= 32:
             return 0, 0
-        left = int((self.pos_x + dx + LEFT) // 32)
-        right = int((self.pos_x + dx + self.img_width - RIGHT) // 32)
-        up = int((self.pos_y + UP) // 32)
-        down = int((self.pos_y + self.img_height - DOWN) // 32)
+
+        left = int((self.pos_x + dx + self.LEFT) // 32)
+        right = int((self.pos_x + dx + self.img_width - self.RIGHT) // 32)
+        up = int((self.pos_y + self.UP) // 32)
+        down = int((self.pos_y + self.img_height - self.DOWN) // 32)
+
         if dx > 0:
             if coll_layer.content2D[up][right] is not None or \
                             coll_layer.content2D[down][right] is not None:
                 dx = 0
-                self.pos_x = right * 32 - self.img_width - 1 + RIGHT
+                self.pos_x = right * 32 - self.img_width - 1 + self.RIGHT
         elif dx < 0:
             if coll_layer.content2D[up][left] is not None or \
                             coll_layer.content2D[down][left] is not None:
                 dx = 0
-                self.pos_x = (left + 1) * 32 + 0 - LEFT
+                self.pos_x = (left + 1) * 32 + 0 - self.LEFT
 
-        left = int((self.pos_x + LEFT) // 32)
-        right = int((self.pos_x + self.img_width - RIGHT) // 32)
-        up = int((self.pos_y + dy + UP) // 32)
-        down = int((self.pos_y + dy + self.img_height - DOWN) // 32)
+        left = int((self.pos_x + self.LEFT) // 32)
+        right = int((self.pos_x + self.img_width - self.RIGHT) // 32)
+        up = int((self.pos_y + dy + self.UP) // 32)
+        down = int((self.pos_y + dy + self.img_height - self.DOWN) // 32)
+
         if dy > 0:
             if coll_layer.content2D[down][left] is not None or \
                             coll_layer.content2D[down][right] is not None:
                 dy = 0
-                self.pos_y = down * 32 - self.img_height - 1 + DOWN
+                self.pos_y = down * 32 - self.img_height - 1 + self.DOWN
         elif dy < 0:
             if coll_layer.content2D[up][left] is not None or \
                             coll_layer.content2D[up][right] is not None:
                 dy = 0
-                self.pos_y = (up + 1) * 32 + 0 - UP
+                self.pos_y = (up + 1) * 32 + 0 - self.UP
 
         return dx, dy
+
+    def encode(self, direction: int, flag: bool):
+        x = round(self.pos_x).to_bytes(length=4, byteorder='big', signed=False)
+        y = round(self.pos_y).to_bytes(length=4, byteorder='big', signed=False)
+        dir_and_flag = (direction*2+flag).to_bytes(length=1, byteorder='big', signed=False)
+        level = self.level.to_bytes(length=1, byteorder='big', signed=True)
+        return x+y+dir_and_flag+level
 
 
 class Friend(Player):
     def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
         super().__init__(img, position, width, height, num, st)
-        self.dir = 'front'
+        self.dir = 0
         self.flag = False
 
     def cord(self, player: Player):
         return CEN_X - (player.pos_x - self.pos_x), CEN_Y - (player.pos_y - self.pos_y)
+
+    def decode(self, data: bytes):
+        self.pos_x = int.from_bytes(bytes=data[0:4], byteorder='big', signed=False)
+        self.pos_y = int.from_bytes(bytes=data[4:8], byteorder='big', signed=False)
+        dir_and_flag = int.from_bytes(bytes=data[8:9], byteorder='big', signed=False)
+        self.dir = dir_and_flag // 2
+        self.flag = dir_and_flag % 2
+        self.level = int.from_bytes(bytes=data[9:10], byteorder='big', signed=True)
 
 
 class Map:
@@ -179,16 +192,14 @@ class Map:
         clock = pygame.time.Clock()
         pygame.time.set_timer(pygame.USEREVENT, 1000)
         running = False
-        direction = 'front'
+        direction = 0
         direction_x = direction_y = 0
         self.done = True
         while self.done:
             dt = clock.tick(FPS)
 
             # Отправка
-            sock.sendto(bytes(str((player.pos_x, player.pos_y, direction,
-                                   not direction_x == direction_y == 0, player.level)), encoding="utf-8"),
-                        (HOST, 8080))
+            sock.sendto(player.encode(direction, not direction_x == direction_y == 0), (HOST, 8080))
 
             # event handing
             for event in pygame.event.get():
@@ -217,13 +228,13 @@ class Map:
             direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
                           pygame.key.get_pressed()[pygame.K_UP]
             if direction_y == 1:
-                direction = 'front'
+                direction = 0
             elif direction_y == -1:
-                direction = 'back'
+                direction = 3
             if direction_x == 1:
-                direction = 'right'
+                direction = 2
             elif direction_x == -1:
-                direction = 'left'
+                direction = 1
 
             dir_len = math.hypot(direction_x, direction_y)
             dir_len = dir_len if dir_len else 1.0
@@ -264,15 +275,19 @@ class Map:
 
 def Listen(other: Friend):
     while FLAG[0]:
-        data, _ = sock.recvfrom(1024)
-        other.pos_x, other.pos_y, other.dir, other.flag, other.level = eval(data)
+        try:
+            data, _ = sock.recvfrom(1024)
+        except:
+            continue
+        other.decode(data)
 
 
 if __name__ == "__main__":
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     HOST = "127.0.0.1"
-    PORT = int(input())
+    PORT = int(input('Введите порт для соединения с сервером: '))
     sock.bind((HOST, PORT))
+    sock.settimeout(1)
 
     pygame.init()
     pygame.display.set_caption('RPG')
@@ -280,11 +295,14 @@ if __name__ == "__main__":
     screen_height = HEIGHT
     screen = pygame.display.set_mode((screen_width, screen_height))
     P = Player('IMG/Hero/Healer.png', (0, 0), 32, 32, 3, 1)
+
     F = Friend('IMG/Hero/Healer.png', (0, 0), 32, 32, 3, 1)
 
     Tent = Map('TilesMap/Tent.tmx', screen)
     Test_1 = Map('TilesMap/Test_1.tmx', screen)
 
-    threading.Thread(target=Test_1.run, args=(P, F)).start()
     threading.Thread(target=Listen, args=(F,)).start()
+    Test_1.run(P, F)
 
+    sock.close()
+    FLAG[0] = False
