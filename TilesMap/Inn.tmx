@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-down" width="81" height="31" tilewidth="32" tileheight="32" backgroundcolor="#000000" nextobjectid="21">
+<map version="1.0" tiledversion="1.0.3" orientation="orthogonal" renderorder="right-down" width="81" height="31" tilewidth="32" tileheight="32" backgroundcolor="#000000" nextobjectid="22">
  <properties>
   <property name="cam_pos_x" type="int" value="3"/>
   <property name="cam_pos_y" type="int" value="3"/>
@@ -342,5 +342,14 @@
   <object id="17" x="36" y="144" width="247" height="31"/>
   <object id="18" x="341" y="96" width="54" height="21"/>
   <object id="20" x="32" y="96" width="96" height="17"/>
+ </objectgroup>
+ <objectgroup name="Obj">
+  <object id="21" type="Gate" x="416" y="544" width="32" height="14">
+   <properties>
+    <property name="path" value="Tent.tmx"/>
+    <property name="pos_x" type="int" value="13"/>
+    <property name="pos_y" type="int" value="18"/>
+   </properties>
+  </object>
  </objectgroup>
 </map>

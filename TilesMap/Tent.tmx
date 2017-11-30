@@ -8,8 +8,9 @@
   <property name="flag" type="bool" value="false"/>
   <property name="layer_coll" type="int" value="5"/>
   <property name="layer_player" type="int" value="4"/>
-  <property name="start_x" type="int" value="3"/>
-  <property name="start_y" type="int" value="5"/>
+  <property name="level" type="int" value="2"/>
+  <property name="start_x" type="int" value="96"/>
+  <property name="start_y" type="int" value="160"/>
  </properties>
  <tileset firstgid="1" source="TileSet/Tiles.tsx"/>
  <tileset firstgid="2017" source="TileSet/Collision.tsx"/>
@@ -85,7 +86,7 @@
 2018,2018,2018,2018,2018,2018
 </data>
  </layer>
- <objectgroup name="Objects">
+ <objectgroup name="Obj">
   <object id="1" type="Exit" x="64" y="192" width="96" height="32"/>
  </objectgroup>
 </map>
