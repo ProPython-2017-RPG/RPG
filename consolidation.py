@@ -139,8 +139,5 @@ def main_loop():
             if result[hero]['action'] == 'something else':
                 if scene.enemies[result[hero]['target']]:
                     vis_dead(scene, result[hero]['target'])
-        vis_magic(scene, 2)
-        vis_magic(scene, 4)
-
 
 main_loop()
