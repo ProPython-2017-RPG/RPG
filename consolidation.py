@@ -36,14 +36,16 @@ result = {'usagi': {'action': None, 'target': None},
 import pygame
 from main import *
 from classes import *
+import os
+import random
 #from go import *
 #from battlescene import *
 
 #Предлагаю использовать такую функцию, где будет происходить вся движуха
 def main_loop():
     # Размер экрана
-    SCREEN_WIDTH = 640
-    SCREEN_HEIGHT = 490
+    SCREEN_WIDTH = 640 #1024
+    SCREEN_HEIGHT = 490 #768
 
     # Всякая ерунда со стартом pygame
     pygame.init()
@@ -51,24 +53,60 @@ def main_loop():
     pygame.display.set_caption('RPG Battle')
 
     # Создание объектов героев и врагов (если они еще не были созданы)
-    healer = Hero()
-    snake = Hero()
-    neko = Hero()
-    usagi = Hero()
-    heros = ('healer', 'snake', 'neko', 'usagi') #Передаем текстовые имена
+    example = {'name': None,
+               'ph_atk': None,
+               'mag_atk': {'size': 5,
+                           'cost': 2,
+                           'type': 'mp'},
+               'fr_atk': {'size': 9,
+                          'cost': 2,
+                          'type': 'mp'},
+               'ph_def': 10,
+               'mag_def': 11,
+               'hp': 50,
+               'sp': 30,
+               'mp': 60}
 
-    monster_1 = Monster()
-    monster_2 = Monster()
-    monster_3 = Monster()
-    monster_4 = Monster()
-    enemies = (monster_1, monster_2, monster_3, monster_4) #Передаем целые объекты
+    healer = Hero(**example)
+    snake = Hero(**example)
+    neko = Hero(**example)
+    usagi = Hero(**example)
+    heros = ({'name': 'healer', 'object': healer},
+             {'name': 'snake', 'object': snake},
+             {'name': 'neko', 'object': neko},
+             {'name': 'usagi', 'object': usagi})
+
+    example = {'name': None,
+               'ph_atk': {'size': 3,
+                          'cost': 2,
+                          'type': 'sp'},
+               'mag_atk': {'size': 8,
+                           'cost': 2,
+                           'type': 'mp'},
+               'ph_def': 14,
+               'mag_def': 19,
+               'hp': 50,
+               'sp': 30,
+               'mp': 60}
+
+    monster_1 = Monster(**example)
+    monster_2 = Monster(**example)
+    enemies = (None,
+               {'type': 'yellowdragon', 'object': monster_2},
+               None,
+               {'type': 'reddragon', 'object': monster_1})
+
+    # Случайным образов выберем фон
+    lower_bg = os.listdir(path='images/background/lower')
+    upper_bg = os.listdir(path='images/background/upper')
+    random_lower = 'images/background/lower/' + lower_bg[random.randint(0, len(lower_bg) - 1)]
+    random_upper = 'images/background/upper/' + upper_bg[random.randint(0, len(upper_bg) - 1)]
 
     # Объявляем scene
     scene = BattleScene(screen,
-                        'images/background/lower/Castle.png',
-                        'images/background/upper/Castle1.png',
-                        heros,
-                        enemies)
+                        random_lower,
+                        random_upper,
+                        heros, enemies)
 
     # Отрисовываем первый раз
     scene.render()
@@ -93,4 +131,16 @@ def main_loop():
         # Пока это выглядит так
         for hero in scene.heros:
             if result[hero]['action'] == 'attack':
-                move(scene, hero)
+                vis_attack(scene, hero)
+            if result[hero]['action'] == 'magic':
+                vis_magic(scene, hero)
+            if result[hero]['action'] == 'something':
+                vis_dead(scene, hero)
+            if result[hero]['action'] == 'something else':
+                if scene.enemies[result[hero]['target']]:
+                    vis_dead(scene, result[hero]['target'])
+        vis_magic(scene, 2)
+        vis_magic(scene, 4)
+
+
+main_loop()
