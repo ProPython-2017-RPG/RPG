@@ -1,10 +1,10 @@
 language: python
 python:
-  - "3.2"
-  - "3.3"
   - "3.4"
   - "3.5"
   - "3.6"
-# command to run tests
+install:
+  - pip install pygame
+  - pip install pyganim
 script:
-  - tests
+  - python3 tests.py
