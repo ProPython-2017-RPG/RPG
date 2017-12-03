@@ -140,4 +140,5 @@ def main_loop():
                 if scene.enemies[result[hero]['target']]:
                     vis_dead(scene, result[hero]['target'])
 
+                    
 main_loop()
