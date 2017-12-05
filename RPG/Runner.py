@@ -1,22 +1,32 @@
 import pygame
 import pyganim
-import tiledtmxloader
+
+from RPG import tiledtmxloader
+from RPG import input_pygame
+
+import textwrap
 import math
 import socket
 import threading
+import os
 
 FPS = 0
+DELAY_SEND = 100
 WIDTH = 1024
 HEIGHT = 768
 CEN_X = WIDTH // 2 - 16
 CEN_Y = HEIGHT // 2 - 16
 STACK = []
-FLAG = [True]
+
+RUN = True
+DIAL_FLAG = False
+MSG = ''
 
 PATH_TO_MAP = 'TilesMap/'
 
-HOST_SERV = "188.226.185.13"
-PORT_SERV = 17070
+HOST = "127.0.0.1"  # "188.226.185.13"
+PORT_UDP = 17070
+PORT_TCP = 9999
 
 
 class Life:
@@ -85,29 +95,42 @@ class Player(Life):
         self.pos_x, self.pos_y, self.level = self._stack.pop()
 
     def encode(self, flag: bool) -> bytes:
+        d = len(LOGGIN).to_bytes(length=1, byteorder='big', signed=False)
+        loggin = bytes(LOGGIN, encoding='utf-8')
         x = round(self.pos_x).to_bytes(length=4, byteorder='big', signed=False)
         y = round(self.pos_y).to_bytes(length=4, byteorder='big', signed=False)
         dir_and_flag = (self.direction * 2 + flag).to_bytes(length=1, byteorder='big', signed=False)
         level = self.level.to_bytes(length=1, byteorder='big', signed=True)
-        return x + y + dir_and_flag + level
+        return d + loggin + x + y + dir_and_flag + level
 
 
 class Friend(Life):
     def __init__(self, img: str, width=32, height=32, num=3, st=0):
         super().__init__(img, width, height, num, st)
-
-        self.flag = False
+        self.show = False
 
     def cord(self, player: Player):
         return CEN_X - (player.pos_x - self.pos_x), CEN_Y - (player.pos_y - self.pos_y)
 
-    def decode(self, data: bytes):
+    def update(self, data: bytes):
         self.pos_x = int.from_bytes(bytes=data[0:4], byteorder='big', signed=False)
         self.pos_y = int.from_bytes(bytes=data[4:8], byteorder='big', signed=False)
         dir_and_flag = int.from_bytes(bytes=data[8:9], byteorder='big', signed=False)
         self.direction = dir_and_flag // 2
-        self.flag = dir_and_flag % 2
+        self.show = dir_and_flag % 2
         self.level = int.from_bytes(bytes=data[9:10], byteorder='big', signed=True)
+
+    @staticmethod
+    def decode_pos(data: bytes, dic: dict):
+        d = int(data[0])
+        loggin = data[1:d + 1]
+        dic.setdefault(loggin, Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)).update(data[d + 1:])
+
+    @staticmethod
+    def decode_msg(data: bytes, dic: dict):
+        d = int(data[0])
+        loggin = data[1:d + 1]
+        dic.setdefault(loggin, Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)).update(data[d + 1:])
 
 
 class Map:
@@ -191,23 +214,21 @@ class Map:
 
         return dx, dy
 
-    def check_obj(self, player: Player, F: Friend):
+    def check_obj(self, sock: socket.socket, player: Player, friends: dict):
         if not self.obj:
             return
 
         x = player.pos_x + player.center_x_const
         y = player.pos_y + player.center_y_const
-
         for obj in self.obj.objects:
             if obj.x < x < obj.x + obj.width and obj.y < y < obj.y + obj.height:
                 if obj.type == "Gate":
                     player.Push(int(obj.properties["pos_x"]) * self.tile_width,
                                 int(obj.properties["pos_y"]) * self.tile_height)
                     name = obj.properties["path"]
-                    Map(PATH_TO_MAP+name, self.surface).run(player, F)
+                    Map(PATH_TO_MAP + name, self.surface).run(sock, player, friends)
                     break
                 if obj.type == "Exit":
-                    print('exit')
                     self.done = False
                     player.Pop()
                     break
@@ -255,46 +276,62 @@ class Map:
         player.pos_y = self.start_y
         player.level = self.level
 
-    def run(self, player: Player, F: Friend):
-        print('start run')
+    def run(self, sock: socket.socket, player: Player, friends: dict):
         self.start_pos_hero(player)
         clock = pygame.time.Clock()
-        pygame.time.set_timer(pygame.USEREVENT, 1000)
+        pygame.time.set_timer(pygame.USEREVENT + 0, 1000)
+        pygame.time.set_timer(pygame.USEREVENT + 1, DELAY_SEND)
         running = False
         direction_x = direction_y = 0
+
+        dial_flag = False
+        msg_input = new_msg()
+
         self.done = True
         while self.done:
             dt = clock.tick(FPS)
-
-            # Отправка
-            sock.sendto(player.encode(not direction_x == direction_y == 0), (HOST_SERV, PORT_SERV))
-
             # event handing
-            for event in pygame.event.get():
+            events = pygame.event.get()
+            if dial_flag:
+                if msg_input.update(events):
+                    # sendTCP()
+                    message_frame.add(LOGGIN, msg_input.get_text())
+                    dial_flag = False
+                    msg_input = new_msg()
+
+            for event in events:
                 if event.type == pygame.QUIT:
                     self.done = False
-                    FLAG[0] = False
-                elif event.type == pygame.USEREVENT:
+                elif event.type == pygame.USEREVENT + 0:
                     print("FPS: ", clock.get_fps())
+                elif event.type == pygame.USEREVENT + 1:
+                    sock.sendto(player.encode(not direction_x == direction_y == 0), (HOST, PORT_UDP))
+
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.done = False
-                        FLAG[0] = False
-                    if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                    elif event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                         running = True
+                    elif event.key == pygame.K_q:
+                        dial_flag = True
 
                 elif event.type == pygame.KEYUP:
                     if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                         running = False
+
             if running:
                 rate = player.run_rate
             else:
                 rate = player.walk_rate
 
-            direction_x = pygame.key.get_pressed()[pygame.K_RIGHT] - \
-                          pygame.key.get_pressed()[pygame.K_LEFT]
-            direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
-                          pygame.key.get_pressed()[pygame.K_UP]
+            if dial_flag:
+                direction_x = 0
+                direction_y = 0
+            else:
+                direction_x = pygame.key.get_pressed()[pygame.K_RIGHT] - \
+                              pygame.key.get_pressed()[pygame.K_LEFT]
+                direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
+                              pygame.key.get_pressed()[pygame.K_UP]
 
             if direction_y == 1:
                 player.direction = 0
@@ -313,7 +350,7 @@ class Map:
             dx, dy = self.check_collision(player, dx, dy)
             dx, dy = self.check_wall(player, dx, dy)
 
-            self.check_obj(player, F)
+            self.check_obj(sock, player, friends)
 
             self.surface.fill((0, 0, 0))
             i = 0
@@ -321,13 +358,14 @@ class Map:
                 self.renderer.render_layer(self.surface, layer)
                 if i == self.layer_player:
 
-                    if F.level == player.level:
-                        if F.flag:
-                            F.move_conductor.play()
-                            F.anim_objs[F.direction].blit(self.surface, F.cord(player))
-                        else:
-                            F.move_conductor.stop()
-                            self.surface.blit(F.standing[F.direction], F.cord(player))
+                    for friend in friends.values():
+                        if friend.level == player.level:
+                            if friend.show:
+                                friend.move_conductor.play()
+                                friend.anim_objs[friend.direction].blit(self.surface, friend.cord(player))
+                            else:
+                                friend.move_conductor.stop()
+                                self.surface.blit(friend.standing[friend.direction], friend.cord(player))
 
                     if direction_x or direction_y:
                         player.move_conductor.play()
@@ -340,37 +378,128 @@ class Map:
             cam_pos_x, cam_pos_y = player.get_pos_cam()
             self.renderer.set_camera_position(cam_pos_x, cam_pos_y)
 
+            if dial_flag:
+                self.surface.blit(dial_frame, (0, 642))
+                self.surface.blit(msg_input.get_surface(), (10, 697))
+
+            frame = message_frame.get_surface()
+            self.surface.blit(frame, (WIDTH*3//4, 0))
+
             pygame.display.flip()
 
 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-def Listen(F: Friend):
-    print('Start Listen')
-    while FLAG[0]:
+class Message:
+    def __init__(self, font_path: str, font_size: int, frame: str, color=(255, 255, 255), w=WIDTH//4, h=HEIGHT):
+        self.color = color
+        self.strings = []
+        if not os.path.isfile(font_path): font_path = pygame.font.match_font(font_path)
+        self.font_object = pygame.font.Font(font_path, font_size)
+        self.frame = pygame.transform.scale(pygame.image.load(frame), (w, h))
+        self.surface = self.frame.copy()
+        self.w = w
+        # self.wch = (w-40) // font_size
+        self.wch = 35
+        self.h = h
+        self.hch = (h-40) // self.font_object.get_height()
+
+    def add(self, loggin: str, msg: str):
+        msg = textwrap.fill('{0}> {1}\n'.format(loggin, msg), self.wch)
+        self.strings += msg.split('\n')
+        self.render_lines()
+
+    def render_lines(self):
+        self.surface = self.frame.copy()
+        up = -self.font_object.get_height()+20
+        down = self.surface.get_height()-self.font_object.get_height()-20
+        dy = -self.font_object.get_height()
+        i = -1
+        for y in range(down, up, dy):
+            if i < -len(self.strings):
+                break
+            else:
+                self.surface.blit(
+                    self.font_object.render(self.strings[i], True, self.color),
+                    (20, y))
+            i -= 1
+
+    def get_surface(self) -> pygame.Surface:
+        return self.surface
+
+
+def new_msg():
+    return input_pygame.pygame_textinput.TextInput(font_family='Font/v_Dadhand_ItchyFeet4_v1.02.ttf',
+                                            font_size=18,
+                                            antialias=True,
+                                            text_color=(255, 255, 255),
+                                            cursor_color=(255, 255, 255),
+                                            max_len=100)
+
+
+def listen_udp(sock: socket.socket, friends: dict):
+    while RUN:
         try:
             data, _ = sock.recvfrom(1024)
-        except:
+        except socket.timeout:
             continue
-        F.decode(data)
+        except ConnectionResetError:
+            break
+        Friend.decode_pos(data, friends)
 
 
-if __name__ == "__main__":
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(1)
+def listen_tcp(sock: socket.socket, friends: dict):
+    while RUN:
+        try:
+            data = sock.recv(1024)
+        except socket.timeout:
+            continue
+        Friend.decode_msg(data, friends)
+
+
+def main():
+    os.chdir(os.path.dirname(__file__))
+    global RUN
+    global LOGGIN
+    global message_frame
+    global dial_frame
+    sock_UDP = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock_UDP.settimeout(1)
+
+    sock_TCP = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # sock_TCP.connect((HOST, PORT_TCP))
+
+    # LOGGIN = input('Введите логин: ')
+    LOGGIN = 'User'
 
     pygame.init()
+    pygame.font.init()
     pygame.display.set_caption('RPG')
     screen_width = WIDTH
     screen_height = HEIGHT
     screen = pygame.display.set_mode((screen_width, screen_height))
-    INN = Map('TilesMap/Inn.tmx', screen)
 
+    message_frame = Message('Font/v_GorillaMilkshake_v1.5.ttf',
+                            12,
+                            'IMG/Frames/Frame_message.png')
+
+    dial_frame = pygame.image.load('IMG/Frames/Frame_dial.png')
+
+    Inn = Map('TilesMap/Inn.tmx', screen)
     P = Player('IMG/Hero/Healer.png', 32, 32, 3, 1)
-    F = Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)
 
-    threading.Thread(target=Listen, args=(F,)).start()
-    INN.run(P, F)
+    friends = {}
 
-    sock.close()
-    FLAG[0] = False
+    listen_UDP = threading.Thread(target=listen_udp, args=(sock_UDP, friends))
+    listen_UDP.daemon = True
+    listen_UDP.start()
+
+    Inn.run(sock_UDP, P, friends)
+    RUN = False
+    listen_UDP.join()
+    sock_UDP.close()
+
+
+if __name__ == "__main__":
+    main()
+

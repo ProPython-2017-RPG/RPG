@@ -1,0 +1,3 @@
+recursive-include RPG/Font *.ttf
+recursive-include RPG/IMG *
+recursive-include RPG/TilesMap *
