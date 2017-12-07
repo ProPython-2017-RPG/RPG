@@ -26,8 +26,45 @@ PATH_TO_MAP = 'TilesMap/'
 
 HOST = "127.0.0.1"  # "188.226.185.13"
 PORT_UDP = 17070
-PORT_TCP = 9999
+PORT_TCP = 17071
 
+
+class Message:
+    def __init__(self, font_path: str, font_size: int, frame: str, color=(255, 255, 255), w=WIDTH//4, h=HEIGHT):
+        self.color = color
+        self.strings = []
+        if not os.path.isfile(font_path): font_path = pygame.font.match_font(font_path)
+        self.font_object = pygame.font.Font(font_path, font_size)
+        self.frame = pygame.transform.scale(pygame.image.load(frame), (w, h))
+        self.surface = self.frame.copy()
+        self.w = w
+        # self.wch = (w-40) // font_size
+        self.wch = 35
+        self.h = h
+        self.hch = (h-40) // self.font_object.get_height()
+
+    def add(self, loggin: str, msg: str):
+        msg = textwrap.fill('{0}> {1}\n'.format(loggin, msg), self.wch)
+        self.strings += msg.split('\n')
+        self.render_lines()
+
+    def render_lines(self):
+        self.surface = self.frame.copy()
+        up = -self.font_object.get_height()+20
+        down = self.surface.get_height()-self.font_object.get_height()-20
+        dy = -self.font_object.get_height()
+        i = -1
+        for y in range(down, up, dy):
+            if i < -len(self.strings):
+                break
+            else:
+                self.surface.blit(
+                    self.font_object.render(self.strings[i], True, self.color),
+                    (20, y))
+            i -= 1
+
+    def get_surface(self) -> pygame.Surface:
+        return self.surface
 
 class Life:
     def __init__(self, img: str, width=32, height=32, num=3, st=0):
@@ -61,7 +98,7 @@ class Life:
 
 
 class Player(Life):
-    def __init__(self, img: str, width=32, height=32, num=3, st=0, rect_coll=(16, 0, 2, 2)):
+    def __init__(self, loggin: str, img: str, width=32, height=32, num=3, st=0, rect_coll=(16, 0, 2, 2)):
         super().__init__(img, width, height, num, st)
 
         self.UP = rect_coll[0]
@@ -74,6 +111,8 @@ class Player(Life):
 
         self.run_rate = 0.45
         self.walk_rate = 0.15
+
+        self.loggin = loggin
 
         self._stack = []
 
@@ -94,14 +133,20 @@ class Player(Life):
     def Pop(self):
         self.pos_x, self.pos_y, self.level = self._stack.pop()
 
-    def encode(self, flag: bool) -> bytes:
-        d = len(LOGGIN).to_bytes(length=1, byteorder='big', signed=False)
-        loggin = bytes(LOGGIN, encoding='utf-8')
+    def encode_udp(self, flag: bool) -> bytes:
+        d = len(self.loggin).to_bytes(length=1, byteorder='big', signed=False)
+        loggin = bytes(self.loggin, encoding='utf-8')
         x = round(self.pos_x).to_bytes(length=4, byteorder='big', signed=False)
         y = round(self.pos_y).to_bytes(length=4, byteorder='big', signed=False)
         dir_and_flag = (self.direction * 2 + flag).to_bytes(length=1, byteorder='big', signed=False)
         level = self.level.to_bytes(length=1, byteorder='big', signed=True)
         return d + loggin + x + y + dir_and_flag + level
+
+    def encode_tcp(self, msg) -> bytes:
+        d = len(self.loggin).to_bytes(length=1, byteorder='big', signed=False)
+        loggin = bytes(self.loggin, encoding='utf-8')
+        message = bytes(msg, encoding='utf-8')
+        return d + loggin + message
 
 
 class Friend(Life):
@@ -127,10 +172,11 @@ class Friend(Life):
         dic.setdefault(loggin, Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)).update(data[d + 1:])
 
     @staticmethod
-    def decode_msg(data: bytes, dic: dict):
+    def decode_msg(data: bytes, dic: dict, mf: Message):
         d = int(data[0])
         loggin = data[1:d + 1]
-        dic.setdefault(loggin, Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)).update(data[d + 1:])
+        mf.add(loggin.decode(), data[d+1:].decode())
+        # dic.setdefault(loggin, Friend('IMG/Hero/Healer.png', 32, 32, 3, 1)).update(data[d + 1:])
 
 
 class Map:
@@ -214,7 +260,7 @@ class Map:
 
         return dx, dy
 
-    def check_obj(self, sock: socket.socket, player: Player, friends: dict):
+    def check_obj(self, sock_udp: socket.socket, sock_tcp: socket.socket, player: Player, friends: dict):
         if not self.obj:
             return
 
@@ -226,7 +272,7 @@ class Map:
                     player.Push(int(obj.properties["pos_x"]) * self.tile_width,
                                 int(obj.properties["pos_y"]) * self.tile_height)
                     name = obj.properties["path"]
-                    Map(PATH_TO_MAP + name, self.surface).run(sock, player, friends)
+                    Map(PATH_TO_MAP + name, self.surface).run(sock_udp, sock_tcp, player, friends)
                     break
                 if obj.type == "Exit":
                     self.done = False
@@ -276,7 +322,7 @@ class Map:
         player.pos_y = self.start_y
         player.level = self.level
 
-    def run(self, sock: socket.socket, player: Player, friends: dict):
+    def run(self, sock_udp: socket.socket, sock_tcp: socket.socket, player: Player, friends: dict):
         self.start_pos_hero(player)
         clock = pygame.time.Clock()
         pygame.time.set_timer(pygame.USEREVENT + 0, 1000)
@@ -294,8 +340,9 @@ class Map:
             events = pygame.event.get()
             if dial_flag:
                 if msg_input.update(events):
-                    # sendTCP()
-                    message_frame.add(LOGGIN, msg_input.get_text())
+                    msg = msg_input.get_text()
+                    sock_tcp.send(player.encode_tcp(msg))
+                    message_frame.add(LOGGIN, msg)
                     dial_flag = False
                     msg_input = new_msg()
 
@@ -305,7 +352,7 @@ class Map:
                 elif event.type == pygame.USEREVENT + 0:
                     print("FPS: ", clock.get_fps())
                 elif event.type == pygame.USEREVENT + 1:
-                    sock.sendto(player.encode(not direction_x == direction_y == 0), (HOST, PORT_UDP))
+                    sock_udp.sendto(player.encode_udp(not direction_x == direction_y == 0), (HOST, PORT_UDP))
 
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
@@ -350,7 +397,7 @@ class Map:
             dx, dy = self.check_collision(player, dx, dy)
             dx, dy = self.check_wall(player, dx, dy)
 
-            self.check_obj(sock, player, friends)
+            self.check_obj(sock_udp, sock_tcp, player, friends)
 
             self.surface.fill((0, 0, 0))
             i = 0
@@ -390,44 +437,6 @@ class Map:
 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
-class Message:
-    def __init__(self, font_path: str, font_size: int, frame: str, color=(255, 255, 255), w=WIDTH//4, h=HEIGHT):
-        self.color = color
-        self.strings = []
-        if not os.path.isfile(font_path): font_path = pygame.font.match_font(font_path)
-        self.font_object = pygame.font.Font(font_path, font_size)
-        self.frame = pygame.transform.scale(pygame.image.load(frame), (w, h))
-        self.surface = self.frame.copy()
-        self.w = w
-        # self.wch = (w-40) // font_size
-        self.wch = 35
-        self.h = h
-        self.hch = (h-40) // self.font_object.get_height()
-
-    def add(self, loggin: str, msg: str):
-        msg = textwrap.fill('{0}> {1}\n'.format(loggin, msg), self.wch)
-        self.strings += msg.split('\n')
-        self.render_lines()
-
-    def render_lines(self):
-        self.surface = self.frame.copy()
-        up = -self.font_object.get_height()+20
-        down = self.surface.get_height()-self.font_object.get_height()-20
-        dy = -self.font_object.get_height()
-        i = -1
-        for y in range(down, up, dy):
-            if i < -len(self.strings):
-                break
-            else:
-                self.surface.blit(
-                    self.font_object.render(self.strings[i], True, self.color),
-                    (20, y))
-            i -= 1
-
-    def get_surface(self) -> pygame.Surface:
-        return self.surface
-
-
 def new_msg():
     return input_pygame.pygame_textinput.TextInput(font_family='Font/v_Dadhand_ItchyFeet4_v1.02.ttf',
                                             font_size=18,
@@ -448,13 +457,13 @@ def listen_udp(sock: socket.socket, friends: dict):
         Friend.decode_pos(data, friends)
 
 
-def listen_tcp(sock: socket.socket, friends: dict):
+def listen_tcp(sock: socket.socket, friends: dict, mf: Message):
     while RUN:
         try:
             data = sock.recv(1024)
         except socket.timeout:
             continue
-        Friend.decode_msg(data, friends)
+        Friend.decode_msg(data, friends, mf)
 
 
 def main():
@@ -467,10 +476,11 @@ def main():
     sock_UDP.settimeout(1)
 
     sock_TCP = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # sock_TCP.connect((HOST, PORT_TCP))
+    sock_TCP.connect((HOST, PORT_TCP))
+    sock_TCP.settimeout(1)
 
-    # LOGGIN = input('Введите логин: ')
-    LOGGIN = 'User'
+    LOGGIN = input('Введите логин: ')
+    # LOGGIN = 'User'
 
     pygame.init()
     pygame.font.init()
@@ -486,18 +496,21 @@ def main():
     dial_frame = pygame.image.load('IMG/Frames/Frame_dial.png')
 
     Inn = Map('TilesMap/Inn.tmx', screen)
-    P = Player('IMG/Hero/Healer.png', 32, 32, 3, 1)
+    P = Player(LOGGIN, 'IMG/Hero/Healer.png', 32, 32, 3, 1)
 
     friends = {}
 
     listen_UDP = threading.Thread(target=listen_udp, args=(sock_UDP, friends))
-    listen_UDP.daemon = True
+    listen_TCP = threading.Thread(target=listen_tcp, args=(sock_TCP, friends, message_frame))
     listen_UDP.start()
+    listen_TCP.start()
 
-    Inn.run(sock_UDP, P, friends)
+    Inn.run(sock_UDP, sock_TCP, P, friends)
     RUN = False
     listen_UDP.join()
     sock_UDP.close()
+    listen_TCP.join()
+    sock_TCP.close()
 
 
 if __name__ == "__main__":
