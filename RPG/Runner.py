@@ -217,7 +217,8 @@ class Player(Life):
         else:
             n = int(self.id[-2:])
             path = 'IMG/Hero/Face/'+self.id[:-2]+'.png'
-            return list(pyganim.getImagesFromSpriteSheet(path, rows=2, cols=4)[n])
+            rect = ((n % 4)*96, (n // 4)*96, 96, 96)
+            return list(pyganim.getImagesFromSpriteSheet(path, rects=[rect]))
 
     def get_pos_cam(self):
         """
