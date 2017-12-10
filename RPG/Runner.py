@@ -13,7 +13,7 @@ import os
 import logging
 
 FPS = 0
-DELAY_SEND = 100
+DELAY_SEND = 1000
 WIDTH = 1024
 HEIGHT = 768
 CEN_X = WIDTH // 2 - 16
@@ -58,7 +58,7 @@ class Message:
         self.hch = (h - 40) // self.font_object.size('a')[1]
 
     @staticmethod
-    def login_to_rpg(login: str) -> (int, int, int):
+    def login_to_rgb(login: str) -> (int, int, int):
         """
         Функция возвращает цвет для логина
         У каждого пользователя свой цвет сообщения
@@ -84,7 +84,7 @@ class Message:
         """
         msg = textwrap.fill('{0}> {1}\n'.format(login, msg), self.wch)
         lines = msg.split('\n')
-        self.colors += [(Message.login_to_rpg(login))] * len(lines)
+        self.colors += [(Message.login_to_rgb(login))] * len(lines)
         self.strings += lines
         self.render_lines()
 
@@ -141,7 +141,7 @@ class Life:
         self.standing = [None] * 4
         # 0-front, 1-left, 2-right, 3-back
         for i in range(4):
-            rects = [(x+num * width, y+i * height, width, height) for num in range(num)]
+            rects = [(x + num * width, y + i * height, width, height) for num in range(num)]
             all_images = pyganim.getImagesFromSpriteSheet(img, rects=rects)
             all_images = list(map(lambda x: x.convert_alpha(), all_images))
             self.standing[i] = all_images[st]
@@ -158,7 +158,26 @@ class Life:
         self.id = id
 
         self.direction = 0
+        self.direction_x = 0
+        self.direction_y = 0
         self.level = 0
+        self.face = self.load_face()
+
+
+    def load_face(self) -> list:
+        """
+        Загружает изображения лиц персонажа.
+        :return: Список лиц
+        """
+        if self.id in SPECIAL_ID:
+            files = list(map(lambda x: 'IMG/Hero/Face/' + self.id + x, os.listdir('IMG/Hero/Face/' + self.id)))
+            files = list(filter(os.path.isfile, files))
+            return list(map(lambda x: pygame.image.load(x), files))
+        else:
+            n = int(self.id[-2:])
+            path = 'IMG/Hero/Face/' + self.id[:-2] + '.png'
+            rect = ((n % 4) * 96, (n // 4) * 96, 96, 96)
+            return list(pyganim.getImagesFromSpriteSheet(path, rects=[rect]))
 
     def move(self, dx, dy):
         """
@@ -191,7 +210,6 @@ class Player(Life):
         :param rect_coll: Отступ сверху, снизу, слева и справа соответсвенно. Для обработки столкновений
         """
         super().__init__(id, DB_C)
-        self.face = self.load_face()
 
         self.UP = rect_coll[0]
         self.DOWN = self.img_height - rect_coll[1]
@@ -201,24 +219,10 @@ class Player(Life):
         self.center_x_const = self.LEFT + (self.RIGHT - self.LEFT) // 2
         self.center_y_const = self.UP + (self.DOWN - self.UP) // 2
 
-        self.login = login
+        self.d = len(login).to_bytes(length=1, byteorder='big', signed=False)
+        self.login = bytes(login, encoding='utf-8')
 
-        self._stack = []
-
-    def load_face(self) -> list:
-        """
-        Загружает изображения лиц персонажа.
-        :return: Список лиц
-        """
-        if self.id in SPECIAL_ID:
-            files = list(map(lambda x: 'IMG/Hero/Face/'+self.id+x, os.listdir('IMG/Hero/Face/'+self.id)))
-            files = list(filter(os.path.isfile, files))
-            return list(map(lambda x: pygame.image.load(x), files))
-        else:
-            n = int(self.id[-2:])
-            path = 'IMG/Hero/Face/'+self.id[:-2]+'.png'
-            rect = ((n % 4)*96, (n // 4)*96, 96, 96)
-            return list(pyganim.getImagesFromSpriteSheet(path, rects=[rect]))
+        self.stack = []
 
     def get_pos_cam(self):
         """
@@ -227,7 +231,7 @@ class Player(Life):
         """
         return self.pos_x + 16, self.pos_y + 16
 
-    def _help_func(self, dx, dy) -> (float, float, float, float):
+    def help_func(self, dx, dy) -> (float, float, float, float):
         """
         Вспомогательная функция для обработки столкновений
         :param dx: Дельта X
@@ -248,7 +252,7 @@ class Player(Life):
         :param y: Позиция Y
         :return: None
         """
-        self._stack.append((x, y, self.level))
+        self.stack.append((x, y, self.level))
 
     def pop(self):
         """
@@ -256,21 +260,20 @@ class Player(Life):
         Срабатывает при выходе из помещения
         :return: None
         """
-        self.pos_x, self.pos_y, self.level = self._stack.pop()
+        self.pos_x, self.pos_y, self.level = self.stack.pop()
 
-    def encode_udp(self, flag: bool) -> bytes:
+    def encode_udp(self, running: bool) -> bytes:
         """
         Кодирует позицию игрока для отпраки.
         :param flag: Состояние игрока (в движении или нет).
         :return: Байты для отправки
         """
-        d = len(self.login).to_bytes(length=1, byteorder='big', signed=False)
-        login = bytes(self.login, encoding='utf-8')
         x = round(self.pos_x).to_bytes(length=4, byteorder='big', signed=False)
         y = round(self.pos_y).to_bytes(length=4, byteorder='big', signed=False)
-        dir_and_flag = (self.direction * 2 + flag).to_bytes(length=1, byteorder='big', signed=False)
+        dir = ((self.direction_x + 1) * 3 + self.direction_y + 1).to_bytes(length=1, byteorder='big', signed=False)
+        flag = (running * 4 + self.direction).to_bytes(length=1, byteorder='big', signed=False)
         level = self.level.to_bytes(length=1, byteorder='big', signed=True)
-        return d + login + x + y + dir_and_flag + level
+        return self.d + self.login + x + y + dir + flag + level
 
     def encode_tcp(self, label: int, *args) -> bytes:
         """
@@ -281,15 +284,18 @@ class Player(Life):
                 1 - Сообщение о новом игроке
         :return: Байты для отправки
         """
-        d = len(self.login).to_bytes(length=1, byteorder='big', signed=False)
-        login = bytes(self.login, encoding='utf-8')
         flag = label.to_bytes(length=1, byteorder='big', signed=False)
         if label == 0:
+            # Отпрака нового сообщения
             message = bytes(args[0], encoding='utf-8')
-            return d + login + flag + message
+            return self.d + self.login + flag + message
         elif label == 1:
+            # Сообщение о присоединении к игре
             id = bytes(self.id, encoding='utf-8')
-            return d + login + flag + id
+            return self.d + self.login + flag + id
+        elif label == 2:
+            # Сообщение о выходе игрока
+            return self.d + self.login + flag
 
 
 class Friend(Life):
@@ -297,13 +303,16 @@ class Friend(Life):
     Класс других игроков.
     """
 
-    def __init__(self, id: str, DB_C: sql.DB):
+    def __init__(self, id: str, login: bytes, DB_C: sql.DB):
         """
         :param id: ID анимации в базе данных
         :param DB_C: Объект для работы с базой данных
         """
         super().__init__(id, DB_C)
-        self.show = False
+        self.login = login
+        self.stop = True
+        self.dir_len = 1
+        self.rate = self.walk_rate
 
     def cord(self, player: Player):
         """
@@ -321,10 +330,16 @@ class Friend(Life):
         """
         self.pos_x = int.from_bytes(bytes=data[0:4], byteorder='big', signed=False)
         self.pos_y = int.from_bytes(bytes=data[4:8], byteorder='big', signed=False)
-        dir_and_flag = int.from_bytes(bytes=data[8:9], byteorder='big', signed=False)
-        self.direction = dir_and_flag // 2
-        self.show = dir_and_flag % 2
-        self.level = int.from_bytes(bytes=data[9:10], byteorder='big', signed=True)
+        dir = int(data[8])
+        self.direction_x = dir // 3 - 1
+        self.direction_y = dir % 3 - 1
+        flag = int(data[9])
+        self.direction = flag % 4
+        self.rate = self.run_rate if flag // 4 else self.walk_rate
+        self.level = int.from_bytes(bytes=data[10:11], byteorder='big', signed=True)
+
+        self.dir_len = math.hypot(self.direction_x, self.direction_y)
+        self.dir_len = self.dir_len if self.dir_len else 1.0
 
     @staticmethod
     def decode_udp(data: bytes, dic: dict):
@@ -348,6 +363,7 @@ class Friend(Life):
         Смотрит на метку и выполняет соответвующую операцию:
         0 - пишет соощение в Message
         1 - добовляет нового игрока
+        2 - удаляет игрока из списка
         :param data: Пришедшее сообщение
         :param dic: Словарь с игроками по логину
         :param mf: Рамка с сообщениями
@@ -360,13 +376,19 @@ class Friend(Life):
         if label == 0:
             mf.add(login.decode(), data.decode())
         elif label == 1:
-            dic[login] = Friend(data.decode(), DB_C)
+            dic[login] = Friend(data.decode(), login, DB_C)
+        elif label == 2:
+            try:
+                del dic[login]
+            except KeyError:
+                logging.error("Key=%s not found" % (login,))
 
 
 class Map:
     """
     Класс работаюзий с картами
     """
+
     def __init__(self, file_name):
         """
         :param file_name: Путь к карте
@@ -431,29 +453,33 @@ class Map:
         if dx >= 32 or dy >= 32:
             return 0, 0
 
-        left, right, up, down = map(lambda x: int(x) // 32, player._help_func(dx, 0))
+        left, right, up, down = map(lambda x: int(x) // 32, player.help_func(dx, 0))
         if dx > 0:
             if self.collision.content2D[up][right] is not None or \
                             self.collision.content2D[down][right] is not None:
                 dx = 0
                 player.pos_x = right * 32 - player.RIGHT - 1
+                player.direction_x = 0
         elif dx < 0:
             if self.collision.content2D[up][left] is not None or \
                             self.collision.content2D[down][left] is not None:
                 dx = 0
                 player.pos_x = (left + 1) * 32 - player.LEFT + 0
+                player.direction_x = 0
 
-        left, right, up, down = map(lambda x: int(x) // 32, player._help_func(0, dy))
+        left, right, up, down = map(lambda x: int(x) // 32, player.help_func(0, dy))
         if dy > 0:
             if self.collision.content2D[down][left] is not None or \
                             self.collision.content2D[down][right] is not None:
                 dy = 0
                 player.pos_y = down * 32 - player.DOWN - 1
+                player.direction_y = 0
         elif dy < 0:
             if self.collision.content2D[up][left] is not None or \
                             self.collision.content2D[up][right] is not None:
                 dy = 0
                 player.pos_y = (up + 1) * 32 - player.UP + 0
+                player.direction_y = 0
 
         return dx, dy
 
@@ -469,13 +495,14 @@ class Map:
         if not self.wall:
             return dx, dy
 
-        left, right, up, down = player._help_func(dx, 0)
+        left, right, up, down = player.help_func(dx, 0)
         if dx > 0:
             for wall in self.wall.objects:
                 if wall.x < right < wall.x + wall.width and \
                         (wall.y < up < wall.y + wall.height or wall.y < down < wall.y + wall.height):
                     dx = 0
                     player.pos_x = wall.x - player.RIGHT - 1
+                    player.direction_x = 0
                     break
         elif dx < 0:
             for wall in self.wall.objects:
@@ -483,15 +510,17 @@ class Map:
                         (wall.y < up < wall.y + wall.height or wall.y < down < wall.y + wall.height):
                     dx = 0
                     player.pos_x = wall.x + wall.width - player.LEFT + 0
+                    player.direction_x = 0
                     break
 
-        left, right, up, down = player._help_func(0, dy)
+        left, right, up, down = player.help_func(0, dy)
         if dy > 0:
             for wall in self.wall.objects:
                 if wall.y < down < wall.y + wall.height and \
                         (wall.x < left < wall.x + wall.width or wall.x < right < wall.x + wall.width):
                     dy = 0
                     player.pos_y = wall.y - player.DOWN - 1
+                    player.direction_y = 0
                     break
         elif dy < 0:
             for wall in self.wall.objects:
@@ -499,6 +528,7 @@ class Map:
                         (wall.x < left < wall.x + wall.width or wall.x < right < wall.x + wall.width):
                     dy = 0
                     player.pos_y = wall.y + wall.height - player.UP + 0
+                    player.direction_y = 0
                     break
 
         return dx, dy
@@ -518,6 +548,7 @@ class Game:
     """
     Основной класс игры.
     """
+
     def __init__(self):
         """
         Pass
@@ -561,10 +592,59 @@ class Game:
         # Другие игроки
         self.friends = {}
 
-        # Основной игрок
-        self.player = Game.player_init(self.DB_C)
+        # Логин игрока
+        self.login = ''
 
-    def option(self):
+        # Основной игрок
+        self.player = None
+        # self.player = Game.player_init(self.DB_C)
+
+    def menu(self) -> str:
+        arrow = self.icon['arrow_left']
+        arrow_pos = [(955, 395 + x * 47) for x in range(5)]
+        i_a = 0
+        menu_surface = pygame.image.load('IMG/Frames/Menu.png')
+        while self.RUN:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.RUN = False
+                    return 'QUIT'
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                        if i_a == 0:
+                            # Новая игра
+                            return 'NEW'
+                        elif i_a == 1:
+                            # Загрузка
+                            return 'LOAD'
+                        elif i_a == 2:
+                            # Настройки
+                            # Пока не добавлены в будущем будет настройка графики.
+                            pass
+                        elif i_a == 3:
+                            # Авторы
+                            pass
+                        elif i_a == 4:
+                            # Выход
+                            self.RUN = False
+                            return 'QUIT'
+                    elif event.key == pygame.K_DOWN:
+                        i_a += 1
+                        if i_a >= len(arrow_pos):
+                            i_a = 0
+                        pygame.time.delay(30)
+                    elif event.key == pygame.K_UP:
+                        i_a -= 1
+                        if i_a < 0:
+                            i_a = len(arrow_pos) - 1
+
+            self.screen.fill((0, 0, 0))
+            self.screen.blit(menu_surface, (0, 0))
+            self.screen.blit(arrow, arrow_pos[i_a])
+            pygame.display.flip()
+        return 'QUIT'
+
+    def option(self) -> str:
         """
         Открывает окно настроек.
         (Включается при нажатии ESC).
@@ -573,7 +653,7 @@ class Game:
         check_pos = [(835, 242),
                      (835, 285)]
         check = self.icon['check']
-        arrow = self.icon['arrow']
+        arrow = self.icon['arrow_right']
         arrow_pos = [(560, 233),
                      (560, 279),
                      (560, 320),
@@ -586,6 +666,7 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.RUN = False
+                    return 'QUIT'
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         donne = False
@@ -601,13 +682,14 @@ class Game:
                             pass
                         elif i_a == 3:
                             # Загрузить
-                            pass
+                            return 'LOAD'
                         elif i_a == 4:
                             # Титры
                             pass
                         elif i_a == 5:
                             # Выход
                             self.RUN = False
+                            return 'QUIT'
 
                     elif event.key == pygame.K_DOWN:
                         i_a += 1
@@ -627,8 +709,9 @@ class Game:
                 self.screen.blit(check, check_pos[1])
             self.screen.blit(arrow, arrow_pos[i_a])
             pygame.display.flip()
+        return 'OK'
 
-    def check_obj(self, map: Map):
+    def check_obj(self, map: Map) -> str:
         """
         Проверяет объекты на карте.
         Gate-вход куда либо.
@@ -637,7 +720,7 @@ class Game:
         :return: None
         """
         if not map.obj:
-            return
+            return 'OK'
 
         x = self.player.pos_x + self.player.center_x_const
         y = self.player.pos_y + self.player.center_y_const
@@ -647,14 +730,14 @@ class Game:
                     self.player.push(int(obj.properties["pos_x"]),
                                      int(obj.properties["pos_y"]))
                     name = obj.properties["path"]
-                    self.map_run(Map(PATH_TO_MAP + name))
-                    break
+                    return self.map_run(Map(PATH_TO_MAP + name))
                 if obj.type == "Exit":
                     map.done = False
                     self.player.pop()
-                    break
+                    return 'OK'
+        return 'OK'
 
-    def map_run(self, map: Map):
+    def map_run(self, map: Map) -> str:
         """
         Основной игровой цикл на карте.
         :param map: Текущая карта
@@ -664,12 +747,11 @@ class Game:
         clock = pygame.time.Clock()
         pygame.time.set_timer(pygame.USEREVENT + 0, 1000)
         pygame.time.set_timer(pygame.USEREVENT + 1, DELAY_SEND)
-        running = False
-        direction_x = direction_y = 0
+        old_running = running = False
 
         dial_flag = False
         msg_input = Game.new_msg()
-
+        direction_x = direction_y = 0
         map.done = True
         while map.done and self.RUN:
             dt = clock.tick(FPS)
@@ -680,22 +762,26 @@ class Game:
                     msg = msg_input.get_text()
                     if self.run_tcp:
                         self.sock_tcp.send(self.player.encode_tcp(msg))
-                    self.message_frame.add(self.player.login, msg)
+                    self.message_frame.add(self.player.login.decode(), msg)
                     dial_flag = False
                     msg_input = Game.new_msg()
 
             for event in events:
                 if event.type == pygame.QUIT:
                     self.RUN = False
+                    return 'QUIT'
                 elif event.type == pygame.USEREVENT + 0:
                     pass
                     # print("FPS: ", clock.get_fps())
                 elif event.type == pygame.USEREVENT + 1 and self.run_udp:
-                    self.sock_udp.sendto(self.player.encode_udp(not direction_x == direction_y == 0), (HOST, PORT_UDP))
+                    self.sock_udp.sendto(self.player.encode_udp(running), (HOST, PORT_UDP))
 
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        self.option()
+                        com = self.option()
+                        if com != 'OK':
+                            map.done = False
+                            return com
                     elif event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                         running = True
                     elif event.key == pygame.K_q:
@@ -711,32 +797,50 @@ class Game:
                 rate = self.player.walk_rate
 
             if dial_flag:
-                direction_x = 0
-                direction_y = 0
+                self.player.direction_x = 0
+                self.player.direction_y = 0
             else:
-                direction_x = pygame.key.get_pressed()[pygame.K_RIGHT] - \
-                              pygame.key.get_pressed()[pygame.K_LEFT]
-                direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
-                              pygame.key.get_pressed()[pygame.K_UP]
+                self.player.direction_x = pygame.key.get_pressed()[pygame.K_RIGHT] - \
+                                          pygame.key.get_pressed()[pygame.K_LEFT]
+                self.player.direction_y = pygame.key.get_pressed()[pygame.K_DOWN] - \
+                                          pygame.key.get_pressed()[pygame.K_UP]
 
-            if direction_y == 1:
+            if self.player.direction_y == 1:
                 self.player.direction = 0
-            elif direction_y == -1:
+            elif self.player.direction_y == -1:
                 self.player.direction = 3
-            if direction_x == 1:
+            if self.player.direction_x == 1:
                 self.player.direction = 2
-            elif direction_x == -1:
+            elif self.player.direction_x == -1:
                 self.player.direction = 1
 
-            dir_len = math.hypot(direction_x, direction_y)
+            dir_len = math.hypot(self.player.direction_x, self.player.direction_y)
             dir_len = dir_len if dir_len else 1.0
             # update position
-            dx = rate * dt * direction_x / dir_len
-            dy = rate * dt * direction_y / dir_len
+            dx = rate * dt * self.player.direction_x / dir_len
+            dy = rate * dt * self.player.direction_y / dir_len
             dx, dy = map.check_collision(self.player, dx, dy)
             dx, dy = map.check_wall(self.player, dx, dy)
 
-            self.check_obj(map)
+            if self.player.direction_x != direction_x:
+                self.sock_udp.sendto(self.player.encode_udp(running), (HOST, PORT_UDP))
+                direction_x = self.player.direction_x
+                direction_y = self.player.direction_y
+                old_running = running
+            elif self.player.direction_y != direction_y:
+                self.sock_udp.sendto(self.player.encode_udp(running), (HOST, PORT_UDP))
+                direction_x = self.player.direction_x
+                direction_y = self.player.direction_y
+                old_running = running
+            elif running != old_running:
+                self.sock_udp.sendto(self.player.encode_udp(running), (HOST, PORT_UDP))
+                direction_x = self.player.direction_x
+                direction_y = self.player.direction_y
+                old_running = running
+
+            com = self.check_obj(map)
+            if com != 'OK':
+                return com
 
             self.screen.fill((0, 0, 0))
             i = 0
@@ -746,14 +850,16 @@ class Game:
 
                     for friend in self.friends.values():
                         if friend.level == self.player.level:
-                            if friend.show:
+                            if friend.direction_x or friend.direction_y:
+                                friend.move(friend.rate * dt * friend.direction_x / friend.dir_len,
+                                            friend.rate * dt * friend.direction_y / friend.dir_len)
                                 friend.move_conductor.play()
-                                friend.anim_objs[friend.direction].blit(self.screen, friend.cord(self.player))
+                                friend.anim_objs[friend.direction].blit(self.screen, friend.cord(self.player, dt))
                             else:
                                 friend.move_conductor.stop()
-                                self.screen.blit(friend.standing[friend.direction], friend.cord(self.player))
+                                self.screen.blit(friend.standing[friend.direction], friend.cord(self.player, dt))
 
-                    if direction_x or direction_y:
+                    if self.player.direction_x or self.player.direction_y:
                         self.player.move_conductor.play()
                         self.player.move(dx, dy)
                         self.player.anim_objs[self.player.direction].blit(self.screen, (CEN_X, CEN_Y))
@@ -761,21 +867,19 @@ class Game:
                         self.player.move_conductor.stop()
                         self.screen.blit(self.player.standing[self.player.direction], (CEN_X, CEN_Y))
                 i += 1
-            cam_pos_x, cam_pos_y = self.player.get_pos_cam()
-            # map.renderer.set_camera_position(cam_pos_x, cam_pos_y)
             map.renderer.set_camera_position(*self.player.get_pos_cam())
 
             if dial_flag:
                 self.screen.blit(self.dial_frame, (0, 642))
-                self.screen.blit(msg_input.get_surface(), (10, 697))
+                self.screen.blit(msg_input.get_surface(), (12, 697))
 
             if self.show_message_frame:
-                frame = self.message_frame.get_surface()
-                self.screen.blit(frame, (WIDTH * 3 // 4, 0))
+                self.screen.blit(self.message_frame.get_surface(), (WIDTH * 3 // 4, 0))
             if self.show_glow:
                 self.screen.blit(self.icon['glow'], (CEN_X, CEN_Y))
 
             pygame.display.flip()
+        return 'OK'
 
     @staticmethod
     def player_init(DB_C: sql.DB) -> Player:
@@ -783,6 +887,7 @@ class Game:
         Статический метод создания игрока.
         :return: Объект игрока
         """
+        # return Player('Asuka_01', 'asuka', DB_C)
         login = ''
         while len(login) < 6:
             print('Длина логина должна быть не менее 6 символов.')
@@ -825,6 +930,19 @@ class Game:
             'glow': False,
         }
 
+    @staticmethod
+    def new_msg(color=(255, 255, 255), font_size=18, max_len=100) -> pygame_textinput.TextInput:
+        """
+        Статический метод возвращающий новую строку ввода.
+        :return: Новая строка ввода
+        """
+        return pygame_textinput.TextInput(font_family='Font/UbuntuMono-R.ttf',
+                                          font_size=font_size,
+                                          antialias=True,
+                                          text_color=color,
+                                          cursor_color=color,
+                                          max_len=max_len)
+
     def listen_udp(self):
         """
         Цикл пролушки UDP соединения
@@ -855,19 +973,6 @@ class Game:
                 continue
             Friend.decode_tcp(data, self.friends, self.message_frame, self.DB_C)
 
-    @staticmethod
-    def new_msg() -> pygame_textinput.TextInput:
-        """
-        Статический метод возвращающий новую строку ввода.
-        :return: Новая строка ввода
-        """
-        return pygame_textinput.TextInput(font_family='Font/UbuntuMono-R.ttf',
-                                          font_size=18,
-                                          antialias=True,
-                                          text_color=(255, 255, 255),
-                                          cursor_color=(255, 255, 255),
-                                          max_len=100)
-
     def start(self, udp: bool, tcp: bool):
         """
         Запуск всей игры.
@@ -878,23 +983,179 @@ class Game:
         self.RUN = True
         self.run_udp = udp
         self.run_tcp = tcp
+        listen_UDP = threading.Thread(target=self.listen_udp, args=())
+        listen_TCP = threading.Thread(target=self.listen_tcp, args=())
         if udp:
-            listen_UDP = threading.Thread(target=self.listen_udp, args=())
             listen_UDP.start()
         if tcp:
-            listen_TCP = threading.Thread(target=self.listen_tcp, args=())
             listen_TCP.start()
 
         self.map_run(Map('TilesMap/Inn.tmx'))
 
         self.RUN = False
+        if tcp:
+            listen_TCP.join()
         self.sock_tcp.close()
+        if udp:
+            listen_UDP.join()
         self.sock_udp.close()
         pygame.font.quit()
         pygame.quit()
 
+    def authorization(self) -> str:
+        try:
+            with open('Save/login', 'r') as f:
+                login = f.read(255)
+                if len(login) >= 3:
+                    self.login = login
+                return 'OK'
+        except FileNotFoundError:
+            pass
+        auth_surface = pygame.image.load('IMG/Frames/Authorization.png')
+        err = pygame.image.load('IMG/Other/Message.png')
+        show_err = False
+        arrow = self.icon['arrow_left']
+        arrow_pos = [(970, 457), (970, 490)]
+        msg_input = self.new_msg((0, 0, 0), 18, 18)
+        i_a = 0
+        while self.RUN:
+            events = pygame.event.get()
+            msg_input.update(events)
+            for event in events:
+                if event.type == pygame.QUIT:
+                    self.RUN = False
+                    return 'QUIT'
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        # Назад
+                        return 'MENU'
+                    elif event.key == pygame.K_RETURN:
+                        if i_a == 0:
+                            login = msg_input.get_text()
+                            if len(login) >= 3:
+                                with open('Save/login', 'w') as f:
+                                    f.write(login)
+                                self.login = msg_input.get_text()
+                                return 'OK'
+                            else:
+                                show_err = True
+                        elif i_a == 1:
+                            # Назад
+                            return 'MENU'
+                    elif event.key == pygame.K_DOWN:
+                        i_a += 1
+                        if i_a >= len(arrow_pos):
+                            i_a = 0
+                        pygame.time.delay(30)
+                    elif event.key == pygame.K_UP:
+                        i_a -= 1
+                        if i_a < 0:
+                            i_a = len(arrow_pos) - 1
+
+            self.screen.fill((0, 0, 0))
+            self.screen.blit(auth_surface, (0, 0))
+            self.screen.blit(msg_input.get_surface(), (785, 413))
+            self.screen.blit(arrow, arrow_pos[i_a])
+            if show_err:
+                self.screen.blit(err, (785, 545))
+            pygame.display.flip()
+        return 'QUIT'
+
+    def init_persone(self) -> str:
+        ID = ['Actor100', 'Actor101', 'Actor102', 'Actor103', 'Actor104', 'Actor105', 'Actor106', 'Actor107',
+              'Actor200', 'Actor201', 'Actor202', 'Actor203', 'Actor204', 'Actor205', 'Actor206', 'Actor207',
+              'Actor300', 'Actor301', 'Actor302', 'Actor303', 'Actor304', 'Actor305', 'Actor306', 'Actor307']
+        Anim = list(map(lambda x: Life(x, self.DB_C), ID))
+        Hero = []
+        init_surface = pygame.image.load('IMG/Frames/init.png')
+        names = []
+        name_input = self.new_msg((0, 0, 0), 18, 11)
+        arrow = pygame.transform.scale(self.icon['arrow_left'], (16, 16))
+        arrow_pos = [(165, 543 + x * 29) for x in range(3)]
+        i_a = 0
+        ind = 0
+        while self.RUN:
+            events = pygame.event.get()
+            name_input.update(events)
+            for event in events:
+                if event.type == pygame.QUIT:
+                    self.RUN = False
+                    return 'QUIT'
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        if i_a == 0:
+                            # Продолжить
+                            name = name_input.get_text()
+                            if name not in names:
+                                names.append(name)
+                                Hero.append(ID[ind])
+                                ID.pop(ind)
+                                Anim.pop(ind)
+                                name_input = self.new_msg((0, 0, 0), 18, 11)
+                                if len(Hero) == 4:
+                                    self.player = Player(self.login, Hero[0], self.DB_C)
+                                    return 'OK'
+                        elif i_a == 1:
+                            # Меню
+                            return 'MENU'
+                        elif i_a == 2:
+                            # Выход
+                            self.RUN = False
+                            return 'QUIT'
+                    elif event.key == pygame.K_RIGHT:
+                        ind += 1
+                        if ind >= len(ID):
+                            ind = 0
+                        pygame.time.delay(30)
+                    elif event.key == pygame.K_LEFT:
+                        ind -= 1
+                        if ind < 0:
+                            ind = len(ID)-1
+                        pygame.time.delay(30)
+                    elif event.key == pygame.K_DOWN:
+                        i_a += 1
+                        if i_a >= len(arrow_pos):
+                            i_a = 0
+                        pygame.time.delay(30)
+                    elif event.key == pygame.K_UP:
+                        i_a -= 1
+                        if i_a < 0:
+                            i_a = len(arrow_pos) - 1
+                        pygame.time.delay(30)
+
+            self.screen.fill((0, 0, 0))
+            self.screen.blit(init_surface, (0, 0))
+            self.screen.blit(arrow, arrow_pos[i_a])
+            self.screen.blit(Anim[ind].face[0], (32, 32))
+            self.screen.blit(name_input.get_surface(), (173, 173))
+            pygame.display.flip()
+        return 'QUIT'
 
 # <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 
+'''
+QUIT
+MENU
+LOAD
+NEW
+OK
+'''
+
 if __name__ == "__main__":
-    Game().start(False, False)
+    g = Game()
+    g.RUN = True
+    com = g.menu()
+    while com != 'QUIT':
+        print(com)
+        if com == 'NEW':
+            com = g.authorization()
+            if com == 'OK':
+                com = g.init_persone()
+                if com == 'OK':
+                    g.start(False, False)
+                    com = 'QUIT'
+        elif com == 'MENU':
+            com = g.menu()
+        elif com == 'LOAD':
+            break
+

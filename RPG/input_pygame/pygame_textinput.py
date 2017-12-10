@@ -87,6 +87,9 @@ class TextInput:
                 elif event.key == pl.K_RETURN:
                     return True
 
+                elif event.key == pl.K_ESCAPE:
+                    continue
+
                 elif event.key == pl.K_RIGHT:
                     # Add one to cursor_pos, but do not exceed len(input_string)
                     self.cursor_position = min(self.cursor_position + 1, len(self.input_string))

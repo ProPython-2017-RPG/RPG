@@ -14,7 +14,6 @@ def main():
             data, addr = sock.recvfrom(1024)
         except ConnectionResetError:
             continue
-
         d = int(data[0])
         loggin = data[1:d + 1]
 

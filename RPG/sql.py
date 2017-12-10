@@ -4,6 +4,7 @@ class DB:
     def __init__(self, name: str):
         self.conn = sqlite3.connect(name)
         self.cur = self.conn.cursor()
+        self.name = name
 
     def create(self):
         self.cur.execute('''CREATE TABLE characters
@@ -25,9 +26,13 @@ class DB:
                          % (id, img, width, height, num, st, x, y))
 
     def search(self, id: str) -> (str, int, int, int, int):
+        conn = sqlite3.connect(self.name)
+        cur = conn.cursor()
         id = id.lower()
-        self.cur.execute("SELECT * FROM characters WHERE id LIKE '%s'" % (id,))
-        out = self.cur.fetchone()
+        cur.execute("SELECT * FROM characters WHERE id LIKE '%s'" % (id,))
+        out = cur.fetchone()
+        cur.close()
+        conn.close()
         return out[1:]
 
     def get(self):
