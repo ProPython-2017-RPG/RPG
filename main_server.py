@@ -21,7 +21,7 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 class User(Model):
-    user_id = CharField()
+    user_login = CharField()
     info = TextField()
     class Meta:
         database = db  # модель будет использовать базу данных 'admin_test'
@@ -34,97 +34,110 @@ class User(Model):
 # for book in Book.filter(author="me"):
 #     print(book.text, ' ', book.birthday)
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 9999
 send_queues = {}
 lock = threading.Lock()
+players = []
 
-
-def handle_client_recv(sock, addr):
+def handle_client_recv(sock):
     """
     Receive messages from client and broadcast them to
     other clients until client disconnects
     """
+    d = 0
+    login = ''
     while True:
-        data = sock.recv(4096)
-        logger.info("Got data from {}; {}".format(sock.getpeername(), data.decode("utf-8")))
-        print("Got data from", sock.getpeername(), data.decode("utf-8"))
-        if not data:
-            handle_disconnect(sock)
-            break
-
-        broadcast(data, addr, sock.fileno())
-
-
-def handle_client_send(sock, addr, q):
-    """ Monitor queue for new messages, send them to client as
-        they arrive """
-    while True:
-        msg = q.get()
-        if msg is None:
-            break
         try:
-            logger.info("Send data from {} to {}; data: {}".format(msg[0], addr, msg[1].decode('utf-8')))
-            res = "{}: {}".format(msg[0], msg[1].decode('utf-8'))
-            sock.send(res.encode("utf-8"))
-        except (IOError, ):
-            handle_disconnect(sock)
+            data = sock.recv(1024)
+        except:
+            if login != '':
+                data = d.to_bytes(1, 'big') + login + (2).to_bytes(1, 'big')
+                for p in players:
+                    if sock != p:
+                        p.send(data)
+            sock.close()
             break
 
+        d = int(data[0])
+        login = data[1:d + 1]
+        label = int(data[d + 1])
+        if label == 3:
+            user = User
+            try:
+                tupl = user.select().where(user.user_login == login).get()
+            except:
+                tupl = 0
 
-def broadcast(data, addr, info):
-    """
-    Add message to each connected client's send queue
-    """
-    print("Broadcast:", data.decode('utf-8'))
+            if tupl == 0:
+                user = User.create(user_login=login)
+                logger.info("user created {}".format(login.decode("utf-8")))
+                sock.sendto((1).to_bytes(1, 'big')) # в базе нет, логин создали
+            else:
+                sock.sendto((0).to_bytes(1, 'big'))  # в базе есть, ошибка
+        elif label == 2:
+            for p in players:
+                if sock != p:
+                    p.send(data)
+            # handle_disconnect(sock)
+            sock.close()
+            break
+        else:
+            for p in players:
+                if sock != p:
+                    p.send(data)
 
-    with lock:
-        for q in send_queues.keys():
-            if q != info:
-                send_queues[q].put([addr, data])
+
+        # else:
+        # print("Got data from", sock.getpeername(), data.decode("utf-8"))
+        # if not data:
+        #     handle_disconnect(sock)
+        #     break
 
 
-def handle_disconnect(sock):
-    """
-    Ensure queue is cleaned up and socket closed when a client
-    disconnects
-    """
-    fd = sock.fileno()
-    with lock:
-        # Get send queue for this client
-        q = send_queues.get(fd, None)
-
-    # If we find a queue then this disconnect has not yet
-    # been handled
-    if q:
-        q.put(None)
-        del send_queues[fd]
-        addr = sock.getpeername()
-        logger.info('Client {} disconnected'.format(addr))
-        print('Client {} disconnected'.format(addr))
-        sock.close()
+# def handle_disconnect(sock):
+#     """
+#     Ensure queue is cleaned up and socket closed when a client
+#     disconnects
+#     """
+#     fd = sock.fileno()
+#     with lock:
+#         # Get send queue for this client
+#         q = send_queues.get(fd, None)
+#
+#     # If we find a queue then this disconnect has not yet
+#     # been handled
+#     if q:
+#         q.put(None)
+#         del send_queues[fd]
+#         addr = sock.getpeername()
+#         logger.info('Client {} disconnected'.format(addr))
+#         print('Client {} disconnected'.format(addr))
+#         sock.close()
 
 
 def main():
     listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_sock.bind((HOST, PORT))
-    listen_sock.listen(100)
+    listen_sock.listen(10)
 
     while True:
         client_sock, addr = listen_sock.accept()
-        user = User
-        try:
-            tupl = user.select().where(user.user_id == addr).get()
-        except:
-            tupl = 0
-
-        if tupl == 0:
-            user = User.create(user_id=addr, info="yours info!")
-        else:
-            # tupl = user.select().where(user.user_id == addr).first()
-            info = tupl[1]
-            client_sock.sendto(info, addr)
+        logger.info('Connection from {}'.format(addr))
+        players.append(client_sock)
+        # user = User
+        # try:
+        #     tupl = user.select().where(user.user_id == addr).get()
+        # except:
+        #     tupl = 0
+        #
+        # if tupl == 0:
+        #     user = User.create(user_id=addr, info="yours info!")
+        # else:
+        #     # tupl = user.select().where(user.user_id == addr).first()
+        #     info = tupl[1]
+        #     client_sock.sendto(info, addr)
 
         # user.save()
 
@@ -135,13 +148,8 @@ def main():
 
         threading.Thread(
             target=handle_client_recv,
-            args=[client_sock, addr], daemon=True
+            args=[client_sock], daemon=True
         ).start()
-        threading.Thread(
-            target=handle_client_send,
-            args=[client_sock, addr, q], daemon=True
-        ).start()
-        logger.info('Connection from {}'.format(addr))
         print('Connection from {}'.format(addr))
 
 
