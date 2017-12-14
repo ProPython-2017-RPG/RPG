@@ -10,6 +10,7 @@ import math
 import socket
 import threading
 import os
+import random
 import logging
 
 FPS = 0
@@ -30,7 +31,8 @@ PORT_TCP = 17071
 
 SPECIAL_ID = ['asuka',
               'katsuragi',
-              'shinji']
+              'shinji',
+              'noname']
 
 
 class Message:
@@ -65,14 +67,10 @@ class Message:
         :param login: Логин игрока
         :return: Цвет в RGB
         """
-        r, g, b = 0, 0, 0
-        for i in range(len(login) // 3):
-            r += ord(login[i])
-            g += ord(login[i + 1])
-            b += ord(login[i + 2])
-        r = 255 - r % 230
-        g = 255 - r % 150
-        b = 255 - r % 230
+        h = hash(login)
+        r = (h & 0xFF0000) >> 16
+        g = (h & 0x00FF00) >> 8
+        b = (h & 0x0000FF)
         return r, g, b
 
     def add(self, login: str, msg: str):
@@ -170,7 +168,7 @@ class Life:
         :return: Список лиц
         """
         if self.id in SPECIAL_ID:
-            files = list(map(lambda x: 'IMG/Hero/Face/' + self.id + x, os.listdir('IMG/Hero/Face/' + self.id)))
+            files = list(map(lambda x: 'IMG/Hero/Face/' + self.id + '/' + x, os.listdir('IMG/Hero/Face/' + self.id)))
             files = list(filter(os.path.isfile, files))
             return list(map(lambda x: pygame.image.load(x), files))
         else:
@@ -610,7 +608,7 @@ class Game:
                     self.RUN = False
                     return 'QUIT'
                 elif event.type == pygame.KEYDOWN:
-                    if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    if event.key == pygame.K_RETURN:
                         if i_a == 0:
                             # Новая игра
                             return 'NEW'
@@ -637,6 +635,7 @@ class Game:
                         i_a -= 1
                         if i_a < 0:
                             i_a = len(arrow_pos) - 1
+                        pygame.time.delay(30)
 
             self.screen.fill((0, 0, 0))
             self.screen.blit(menu_surface, (0, 0))
@@ -1051,6 +1050,7 @@ class Game:
                         i_a -= 1
                         if i_a < 0:
                             i_a = len(arrow_pos) - 1
+                        pygame.time.delay(30)
 
             self.screen.fill((0, 0, 0))
             self.screen.blit(auth_surface, (0, 0))
@@ -1061,13 +1061,30 @@ class Game:
             pygame.display.flip()
         return 'QUIT'
 
+    def view_logo(self):
+        logo = pygame.image.load('IMG/Other/logo.png')
+        self.screen.fill((255, 255, 255))
+        self.screen.blit(logo, (265, 196))
+        pygame.display.flip()
+        pygame.time.wait(2000)
+
     def init_persone(self) -> str:
-        ID = ['Actor100', 'Actor101', 'Actor102', 'Actor103', 'Actor104', 'Actor105', 'Actor106', 'Actor107',
-              'Actor200', 'Actor201', 'Actor202', 'Actor203', 'Actor204', 'Actor205', 'Actor206', 'Actor207',
-              'Actor300', 'Actor301', 'Actor302', 'Actor303', 'Actor304', 'Actor305', 'Actor306', 'Actor307']
+        flag_duplicate = 0
+        msg_dup = pygame.image.load('IMG/Other/Message1.png')
+        cord_x_dup = 50
+        flag_nil = 0
+        msg_nil = pygame.image.load('IMG/Other/Message2.png')
+        cord_x_nil = 39
+        cord_y_msg = [460, 490]
+        msg_random_character = pygame.image.load('IMG/Other/Random_character.png')
+        ID = ['noname',
+              'actor100', 'actor101', 'actor102', 'actor103', 'actor104', 'actor105', 'actor106', 'actor107',
+              'actor200', 'actor201', 'actor202', 'actor203', 'actor204', 'actor205', 'actor206', 'actor207',
+              'actor300', 'actor301', 'actor302', 'actor303', 'actor304', 'actor305', 'actor306', 'actor307']
         Anim = list(map(lambda x: Life(x, self.DB_C), ID))
         Hero = []
         init_surface = pygame.image.load('IMG/Frames/init.png')
+        # card_surface = pygame.image.load('IMG/Frames/....py')
         names = []
         name_input = self.new_msg((0, 0, 0), 18, 11)
         arrow = pygame.transform.scale(self.icon['arrow_left'], (16, 16))
@@ -1086,12 +1103,21 @@ class Game:
                         if i_a == 0:
                             # Продолжить
                             name = name_input.get_text()
-                            if name not in names:
+                            if len(name) == 0:
+                                flag_nil = flag_duplicate + 1 if not flag_nil else flag_nil
+                            elif name in names:
+                                flag_duplicate = flag_nil + 1 if not flag_duplicate else flag_duplicate
+                            else:
+                                if ind == 0:
+                                    ind = random.randint(1, len(ID)-1)
                                 names.append(name)
                                 Hero.append(ID[ind])
                                 ID.pop(ind)
                                 Anim.pop(ind)
                                 name_input = self.new_msg((0, 0, 0), 18, 11)
+                                flag_duplicate = 0
+                                flag_nil = 0
+                                ind -= 1
                                 if len(Hero) == 4:
                                     self.player = Player(self.login, Hero[0], self.DB_C)
                                     return 'OK'
@@ -1122,11 +1148,22 @@ class Game:
                         if i_a < 0:
                             i_a = len(arrow_pos) - 1
                         pygame.time.delay(30)
-
             self.screen.fill((0, 0, 0))
             self.screen.blit(init_surface, (0, 0))
             self.screen.blit(arrow, arrow_pos[i_a])
             self.screen.blit(Anim[ind].face[0], (32, 32))
+            Anim[ind].move_conductor.play()
+            Anim[ind].anim_objs[1].blit(self.screen, (185, 64))
+            Anim[ind].anim_objs[3].blit(self.screen, (217, 32))
+            self.screen.blit(Anim[ind].standing[0], (217, 64))
+            Anim[ind].anim_objs[0].blit(self.screen, (217, 96))
+            Anim[ind].anim_objs[2].blit(self.screen, (249, 64))
+            if flag_nil:
+                self.screen.blit(msg_nil, (cord_x_nil, cord_y_msg[flag_nil-1]))
+            if flag_duplicate:
+                self.screen.blit(msg_dup, (cord_x_dup, cord_y_msg[flag_duplicate-1]))
+            if ind == 0:
+                self.screen.blit(msg_random_character, (76, 140))
             self.screen.blit(name_input.get_surface(), (173, 173))
             pygame.display.flip()
         return 'QUIT'
@@ -1144,6 +1181,7 @@ OK
 if __name__ == "__main__":
     g = Game()
     g.RUN = True
+    g.view_logo()
     com = g.menu()
     while com != 'QUIT':
         print(com)
