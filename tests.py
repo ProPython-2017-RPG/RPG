@@ -1,5 +1,6 @@
 import unittest
-from main import *
+from Runner import *
+from battle import *
 
 
 class BattlePlayerTest(unittest.TestCase):
