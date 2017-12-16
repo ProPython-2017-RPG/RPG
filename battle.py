@@ -179,13 +179,14 @@ class BattleScene:
 
 
             # Hero health
-            s1, s2, s3 = self.bars[i].render()
-            self.screen.blit(s1, (self.screen.get_size()[0] - 180,
-                                  self.screen.get_size()[1] - 112 + 25 * i))
-            self.screen.blit(s2, (self.screen.get_size()[0] - 180,
-                                  self.screen.get_size()[1] - 112 + 25 * i + 5))
-            self.screen.blit(s3, (self.screen.get_size()[0] - 180,
-                                  self.screen.get_size()[1] - 112 + 25 * i + 10))
+            if hero.visible:
+                s1, s2, s3 = self.bars[i].render()
+                self.screen.blit(s1, (self.screen.get_size()[0] - 180,
+                                      self.screen.get_size()[1] - 112 + 25 * i))
+                self.screen.blit(s2, (self.screen.get_size()[0] - 180,
+                                      self.screen.get_size()[1] - 112 + 25 * i + 5))
+                self.screen.blit(s3, (self.screen.get_size()[0] - 180,
+                                      self.screen.get_size()[1] - 112 + 25 * i + 10))
 
             # Heros
             if hero.visible:
@@ -541,8 +542,9 @@ def animation(scene, result, local_player):
         # Enemies turn
         if scene.enemies[rand_enemy].info.alive and j == 0:
             enemy = scene.enemies[rand_enemy]
-        else:
+        elif j < 2:
             enemy = scene.enemies[1 - rand_enemy]
+            j = 1
         if j < 2 and enemy.info.alive:
             alive, hero_name, attack = enemy.info.attack(heroes=local_player.get_alive_heroes())
             if attack == 'ph_atk':
@@ -573,6 +575,8 @@ def reset(scene, value):
         hero.info.sp += value
         if hero.info.sp > hero.init_sp:
             hero.info.sp = hero.init_sp
+
+    update_bars(scene)
 
 
 def update_bars(scene):
