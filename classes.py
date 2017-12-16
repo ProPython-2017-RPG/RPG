@@ -115,6 +115,8 @@ class Monster:
         print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
         print(attack)
 
+        return hero.alive, hero.name, attack.name
+
 
 class Attack:
     def __init__(self, name, size, cost, atr_type, defense, features=None):
