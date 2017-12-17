@@ -35,6 +35,7 @@ class TCP:
 
     def close(self, sock: socket.socket, data: bytes):
         print('Close', sock.getsockname())
+        logger.info('Close {}'.format(sock.getsockname()))
         sock.close()
         del self.players[sock]
         for k in self.players.keys():
@@ -117,6 +118,7 @@ class TCP:
         sock.bind((HOST, PORT))
         sock.listen(2)
         print("Starting TCP server on %s:%d" % (HOST, PORT))
+        logger.info("Starting TCP server on %s:%d" % (HOST, PORT))
         while self.run:
             try:
                 client_sock, addr = sock.accept()
@@ -124,6 +126,7 @@ class TCP:
                 self.run = False
                 break
             print('New client', addr)
+            logger.info('New client {}'.format(addr))
             self.players[client_sock] = None
             threading.Thread(target=self.listen, args=(client_sock,)).start()
 
