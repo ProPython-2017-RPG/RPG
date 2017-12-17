@@ -1,17 +1,19 @@
-"""
-Низкоуровневая реализация TCP-сервера, работающего с множеством клиентов, используя потоки.
-"""
-import threading
-import queue
 import socket
-import peewee
+import threading
 from peewee import *
 import logging
 from datetime import date
 
-db = MySQLDatabase("admin_test", host="188.226.185.13", port=3306, user="admin_test", passwd="111111")
+HOST = '127.0.0.1'
+PORT = 17071
 
-logger = logging.getLogger("client")
+db = MySQLDatabase("admin_test",
+                   host="188.226.185.13",
+                   port=3306,
+                   user="admin_test",
+                   passwd="111111")
+
+logger = logging.getLogger("tcp_server")
 logger.setLevel(logging.INFO)
 # create the logging file handler
 fh = logging.FileHandler("activity.log")
@@ -22,136 +24,109 @@ logger.addHandler(fh)
 
 class User(Model):
     user_login = CharField()
-    info = TextField()
     class Meta:
-        database = db  # модель будет использовать базу данных 'admin_test'
+        database = db
 
-# User.create_table()
 
-# user = User(author="me", text='bad work!', birthday=date(3000, 12, 9))
-# user.save()
+class TCP:
+    def __init__(self):
+        self.players = {}
+        self.run = True
 
-# for book in Book.filter(author="me"):
-#     print(book.text, ' ', book.birthday)
+    def close(self, sock: socket.socket, data: bytes):
+        print('Close', sock.getsockname())
+        sock.close()
+        del self.players[sock]
+        for k in self.players.keys():
+            k.send(data)
 
-HOST = "0.0.0.0"
-PORT = 9999
-send_queues = {}
-lock = threading.Lock()
-players = []
-
-def handle_client_recv(sock):
-    """
-    Receive messages from client and broadcast them to
-    other clients until client disconnects
-    """
-    d = 0
-    login = ''
-    while True:
-        try:
-            data = sock.recv(1024)
-        except:
-            if login != '':
-                data = d.to_bytes(1, 'big') + login + (2).to_bytes(1, 'big')
-                for p in players:
-                    if sock != p:
-                        p.send(data)
-            sock.close()
-            break
-
-        d = int(data[0])
-        login = data[1:d + 1]
-        label = int(data[d + 1])
-        if label == 3:
-            user = User
+    def listen(self, sock: socket.socket):
+        data_exit = b''
+        while self.run:
             try:
-                tupl = user.select().where(user.user_login == login).get()
-            except:
-                tupl = 0
+                data = sock.recv(1024)
+            except ConnectionResetError:
+                sock.close()
+                del self.players[sock]
+                return
+            if len(data) == 0:
+                sock.close()
+                del self.players[sock]
+                return
+            d = int(data[0])
+            label = int(data[d + 1])
+            if label == 3:
+                # New New
+                pass
+            elif label == 1:
+                # New
+                for k, v in self.players.items():
+                    if v is not None:
+                        sock.send(v)
+                    if sock != k:
+                        k.send(data)
+                self.players[sock] = data
+                data_exit = data[0:d + 1] + (2).to_bytes(length=1, byteorder='big', signed=False)
+                break
 
-            if tupl == 0:
-                user = User.create(user_login=login)
-                logger.info("user created {}".format(login.decode("utf-8")))
-                sock.sendto((1).to_bytes(1, 'big')) # в базе нет, логин создали
-            else:
-                sock.sendto((0).to_bytes(1, 'big'))  # в базе есть, ошибка
-        elif label == 2:
-            for p in players:
-                if sock != p:
-                    p.send(data)
-            # handle_disconnect(sock)
-            sock.close()
-            break
-        else:
-            for p in players:
-                if sock != p:
-                    p.send(data)
+        while self.run:
+            try:
+                data = sock.recv(1024)
+            except ConnectionResetError:
+                self.close(sock, data_exit)
+                return
+            if len(data) == 0:
+                self.close(sock, data_exit)
+                return
+            d = int(data[0])
+            login = data[1:d + 1]
+            label = int(data[d + 1])
+            if label == 0:
+                # New Message
+                pass
+            elif label == 2:
+                self.close(sock, data_exit)
+                return
+            elif label == 3:
+                user = User
+                try:
+                    tupl = user.select().where(user.user_login == login).get()
+                except:
+                    tupl = 0
 
+                if tupl == 0:
+                    user = User.create(user_login=login)
+                    logger.info("user created {}".format(login.decode("utf-8")))
+                    sock.sendto((1).to_bytes(1, 'big'))  # в базе нет, логин создали
+                else:
+                    sock.sendto((0).to_bytes(1, 'big'))  # в базе есть, ошибка
 
-        # else:
-        # print("Got data from", sock.getpeername(), data.decode("utf-8"))
-        # if not data:
-        #     handle_disconnect(sock)
-        #     break
+            elif label == 4:
+                # Reset player
+                self.players[sock] = data[0:d + 1] + \
+                                     (1).to_bytes(length=1, byteorder='big', signed=False) + data[d + 2:]
 
+            for k in self.players.keys():
+                if sock != k:
+                    k.send(data)
 
-# def handle_disconnect(sock):
-#     """
-#     Ensure queue is cleaned up and socket closed when a client
-#     disconnects
-#     """
-#     fd = sock.fileno()
-#     with lock:
-#         # Get send queue for this client
-#         q = send_queues.get(fd, None)
-#
-#     # If we find a queue then this disconnect has not yet
-#     # been handled
-#     if q:
-#         q.put(None)
-#         del send_queues[fd]
-#         addr = sock.getpeername()
-#         logger.info('Client {} disconnected'.format(addr))
-#         print('Client {} disconnected'.format(addr))
-#         sock.close()
+        sock.close()
 
-
-def main():
-    listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_sock.bind((HOST, PORT))
-    listen_sock.listen(10)
-
-    while True:
-        client_sock, addr = listen_sock.accept()
-        logger.info('Connection from {}'.format(addr))
-        players.append(client_sock)
-        # user = User
-        # try:
-        #     tupl = user.select().where(user.user_id == addr).get()
-        # except:
-        #     tupl = 0
-        #
-        # if tupl == 0:
-        #     user = User.create(user_id=addr, info="yours info!")
-        # else:
-        #     # tupl = user.select().where(user.user_id == addr).first()
-        #     info = tupl[1]
-        #     client_sock.sendto(info, addr)
-
-        # user.save()
-
-        q = queue.Queue()
-
-        with lock:
-            send_queues[client_sock.fileno()] = q
-
-        threading.Thread(
-            target=handle_client_recv,
-            args=[client_sock], daemon=True
-        ).start()
-        print('Connection from {}'.format(addr))
+    def run_serv(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind((HOST, PORT))
+        sock.listen(2)
+        print("Starting TCP server on %s:%d" % (HOST, PORT))
+        while self.run:
+            try:
+                client_sock, addr = sock.accept()
+            except KeyboardInterrupt:
+                self.run = False
+                break
+            print('New client', addr)
+            self.players[client_sock] = None
+            threading.Thread(target=self.listen, args=(client_sock,)).start()
 
 
 if __name__ == '__main__':
-    main()
+    TCP().run_serv()
