@@ -13,20 +13,26 @@ db = MySQLDatabase("admin_test",
                    user="admin_test",
                    passwd="111111")
 
+# db = MySQLDatabase("rstabhuymg",
+#                    host="188.166.93.63",
+#                    port=8082,
+#                    user="rstabhuymg",
+#                    password="rq33hMdn5M")
+
 logger = logging.getLogger("tcp_server")
 logger.setLevel(logging.INFO)
 # create the logging file handler
-fh = logging.FileHandler("activity.log")
+fh = logging.FileHandler("server_activity.log")
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(message)s')
 fh.setFormatter(formatter)
 # add handler to logger object
 logger.addHandler(fh)
 
 class User(Model):
-    user_login = CharField()
+    user_login = TextField()
     class Meta:
         database = db
-
+# User.create_table()
 
 class TCP:
     def __init__(self):
@@ -55,10 +61,22 @@ class TCP:
                 del self.players[sock]
                 return
             d = int(data[0])
+            login = data[1:d + 1]
             label = int(data[d + 1])
             if label == 3:
-                # New New
-                pass
+                user = User
+                print(user)
+                try:
+                    tupl = user.select().where(user.user_login == login).get()
+                except:
+                    tupl = 0
+
+                if tupl == 0:
+                    user = User.create(user_login=login)
+                    logger.info("user created {}".format(login.decode("utf-8")))
+                    sock.sendto((1).to_bytes(1, 'big'), sock.getpeername())  # в базе нет, логин создали
+                else:
+                    sock.sendto((0).to_bytes(1, 'big'), sock.getpeername())  # в базе есть, ошибка
             elif label == 1:
                 # New
                 for k, v in self.players.items():
@@ -80,7 +98,6 @@ class TCP:
                 self.close(sock, data_exit)
                 return
             d = int(data[0])
-            login = data[1:d + 1]
             label = int(data[d + 1])
             if label == 0:
                 # New Message
@@ -88,19 +105,6 @@ class TCP:
             elif label == 2:
                 self.close(sock, data_exit)
                 return
-            elif label == 3:
-                user = User
-                try:
-                    tupl = user.select().where(user.user_login == login).get()
-                except:
-                    tupl = 0
-
-                if tupl == 0:
-                    user = User.create(user_login=login)
-                    logger.info("user created {}".format(login.decode("utf-8")))
-                    sock.sendto((1).to_bytes(1, 'big'))  # в базе нет, логин создали
-                else:
-                    sock.sendto((0).to_bytes(1, 'big'))  # в базе есть, ошибка
 
             elif label == 4:
                 # Reset player
