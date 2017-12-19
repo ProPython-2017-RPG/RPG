@@ -1,250 +1,147 @@
-#1) Класс игрока.
+import random
+# в качестве структур данных я брал словари
+
+
 class Player:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.login
-		self.money
-		self.inventory
-		
-		self.heroes
-		
-		self.active_missions
-		self.completed_missions
-		
-		self.x
-		self.y
+    def __init__(self, heroes):
 
-#2) Класс героя.
+        self.heroes = heroes
+
+    def get_alive_heroes(self):
+        return [i for i in self.heroes if i.alive is True]
+
+
 class Hero:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.name
-		#Слово class уже зарезервировано за Python
-		self.kind
-		self.profession
-		self.level
-		self.info
-		self.dead
-		
-		#Очки здоровья
-		self.hp
-		#Очки маны
-		self.mp
-		#Очки опыта
-		self.exp
-		#Очки воли (Только после того, как CP иссякнут, у персонажа начнут уменьшаться HP)
-		self.cp
-		
-		#Физическая атака
-		self.p_atk
-		#Критическая атака
-		self.c_atk
-		#Атака огнем
-		self.f_atk
-		#Атака водой
-		self.w_atk
-		#Атака землей
-		self.e_atk
-		#Атака воздухом
-		self.a_atk
-		#Атака светом
-		self.l_atk
-		#Атака тьмой
-		self.d_atk
-		
-		#Физическая защита
-		self.p_def
-		#Защита от огня
-		self.f_def
-		#Защита от воды
-		self.w_def
-		#Защита от земли
-		self.e_def
-		#Защита от воздуха
-		self.a_def
-		#Защита от света
-		self.l_def
-		#Защита от тьмы
-		self.d_def
-		
-		#Меткость (Частота успешных попаданий по противнику)
-		self.accuracy
-		#Шанс избежать удара (Частота уклонения от ударов противника)
-		self.evasion
-		#Шанс критического урона
-		self.critical
-		#Сила духа (Сопротивляемость заклинаниям, уменьшающим характеристики (дебаффам), а также сну, параличу и прочему)
-		self.wit
-		
-		self.skills
-		self.buff
-		self.debuff
-		
-		self.weapons
-		self.armor
-		self.items
 
-#3) Класс врагов, которые в свою очередь состоят из классов монстров.
-class Enemies:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.name
-		self.level
-		self.info
-		
-		self.count
-		self.monsters
-		
-		self.loot
+    def __init__(self, name, hp, mp, sp, at_list, df_list):
+        self.name = name
+        self.hp = hp
+        self.mp = mp
+        self.sp = sp
+        self.at_list = at_list  # кортеж с объектами Attack
+        self.df_list = df_list  # кортеж с объектами Defense
+        self.alive = True
 
-#4) Класс монстров.
+    def __str__(self):
+        return 'name:{},hp: {},mp: {},sp: {}'.format(self.name, self.hp, self.mp, self.sp)
+
+    def get_hp(self):
+        return self.hp
+
+    def hp_change(self, attack):
+        defense = 0
+        for i in self.df_list:
+            if i.name == attack.defense:
+                defense = i.size
+            else:
+                defense = 0
+        self.hp -= (1 - defense * 0.01) * attack.size  # сюда можно заносить изменения в расчете урона
+        if self.hp <= 0:
+            self.alive = False
+
+
+    # непосредственно расчет атаки
+    def attack(self, monster, attack):
+        print(monster)
+        print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
+        if attack.atr_type == 'sp' and attack.cost <= self.sp:
+            self.sp -= attack.cost
+            monster.hp_change(attack)
+        if attack.atr_type == 'mp' and attack.cost <= self.mp:
+            self.mp -= attack.cost
+            monster.hp_change(attack)
+        print(monster)
+        print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
+        print(attack)
+
+
+class Enemy:
+    def __init__(self, monsters):
+        self.monsters = monsters
+
+    def get_alive_monsters(self):
+        return [i for i in self.monsters if i.alive is True]
+
+    def choose_random_monster(self):
+        return random.choice(self.get_alive_monsters())
+
+
 class Monster:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.dead
-		
-		#Очки здоровья
-		self.hp
-		#Очки маны
-		self.mp
-		#Очки воли (Только после того, как CP иссякнут, у персонажа начнут уменьшаться HP)
-		self.cp
-		
-		#Физическая атака
-		self.p_atk
-		#Критическая атака
-		self.c_atk
-		#Атака огнем
-		self.f_atk
-		#Атака водой
-		self.w_atk
-		#Атака землей
-		self.e_atk
-		#Атака воздухом
-		self.a_atk
-		#Атака светом
-		self.l_atk
-		#Атака тьмой
-		self.d_atk
-		
-		#Физическая защита
-		self.p_def
-		#Защита от огня
-		self.f_def
-		#Защита от воды
-		self.w_def
-		#Защита от земли
-		self.e_def
-		#Защита от воздуха
-		self.a_def
-		#Защита от света
-		self.l_def
-		#Защита от тьмы
-		self.d_def
-		
-		#Меткость (Частота успешных попаданий по противнику)
-		self.accuracy
-		#Шанс избежать удара (Частота уклонения от ударов противника)
-		self.evasion
-		#Шанс критического урона
-		self.critical
-		#Сила духа (Сопротивляемость заклинаниям, уменьшающим характеристики (дебаффам), а также сну, параличу и прочему)
-		self.wit
-		
-		self.skills
-		self.buff
-		self.debuff
-		
-		self.weapons
-		self.armor
-		self.items
 
-#5) Класс умений.
-class Skills:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.name
-		self.level
-		#Подразумевается использовать hash для различия навыков, предметов и прочего
-		self.hash
-		self.info
+    def __init__(self, name, hp, mp, sp, at_list, df_list):
+        self.name = name
+        self.hp = hp
+        self.mp = mp
+        self.sp = sp
+        self.at_list = at_list # кортеж с объектами Attack
+        self.df_list = df_list # кортеж с объектами Defense
+        self.alive = True
 
-#6) Класс предмета.		
-class Item:
-	
-	def __init__(self, *args, **kwargs):
-		
-		self.name
-		#Прочность
-		self.strength
-		self.level
-		#Допустимый класс. Не все классы смогут воспользоваться данным предметом.
-		self.allowable_class
-		self.hash
-		self.info
+    def __str__(self):
+        return 'name: {}, hp: {},mp: {},sp: {}'.format(self.name, self.hp, self.mp, self.sp)
 
-#7) Класс оружия. Наследник класса Item.
-class Weapons(Item):
-	
-	def __init__(self, *args, **kwargs):
-		
-		super().__init__(*args, **kwargs)
-		
-		#Физическая атака
-		self.p_atk
-		#Критическая атака
-		self.c_atk
-		#Атака огнем
-		self.f_atk
-		#Атака водой
-		self.w_atk
-		#Атака землей
-		self.e_atk
-		#Атака воздухом
-		self.a_atk
-		#Атака светом
-		self.l_atk
-		#Атака тьмой
-		self.d_atk
-		
-		self.skills
+    def get_hp(self):
+        return self.hp
 
-#8) Класс брони. Наследник класса Item.
-class Armor(Item):
-	
-	def __init__(self, *args, **kwargs):
-		
-		super().__init__(*args, **kwargs)
-		
-		#Физическая защита
-		self.p_def
-		#Защита от огня
-		self.f_def
-		#Защита от воды
-		self.w_def
-		#Защита от земли
-		self.e_def
-		#Защита от воздуха
-		self.a_def
-		#Защита от света
-		self.l_def
-		#Защита от тьмы
-		self.d_def
-		
-		self.skills
+    def choose_random_attack(self):
+        i = random.choice(self.at_list)
+        return i
 
-#9) Класс вспомогательных предметов. Наследник класса Item.
-#Название можно изменить, сейчас я не смог придумать лучше.
-class HelpItem(Item):
-	
-	def __init__(self, *args, **kwargs):
-		
-		super().__init__(*args, **kwargs)
-		
-		#Функция от Hero увеличивающая какие-либо характеристики.
-		self.action
+    def hp_change(self, attack):
+        defense = 0
+        for i in self.df_list:
+            if i.name == attack.defense:
+                defense = i.size
+            else:
+                defense = 0
+        self.hp -= (1 - defense * 0.01) * attack.size  # сюда можно заносить изменения в расчете урона
+        if self.hp <= 0:
+            self.alive = False
+
+    def attack(self, heroes):
+        low_hp = sorted(heroes, key=lambda hro: hro.get_hp())[0:2] # рандомный выбор из двух героев с наименьшим хп
+        hero = random.choice(low_hp)
+        print(hero)
+        print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
+        attack = self.choose_random_attack()
+        if attack.atr_type == 'sp' and attack.cost <= self.sp:
+            self.sp -= attack.cost
+            hero.hp_change(attack)
+        if attack.atr_type == 'mp' and attack.cost <= self.mp:
+            self.mp -= attack.cost
+            hero.hp_change(attack)
+
+        print(hero)
+        print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
+        print(attack)
+
+        return hero.alive, hero.name, attack.name
+
+
+class Attack:
+    def __init__(self, name, size, cost, atr_type, defense, features=None):
+        self.name = name
+        self.size = size
+        self.cost = cost
+        self.atr_type = atr_type
+        self.defense = defense # имя соотв защиты
+        self.features = features
+
+    def __str__(self):
+        return '{}'.format(self.name)
+
+
+class Defence:
+    def __init__(self, name, size):
+        self.name = name
+        self.size = size
+
+    def __str__(self):
+        return '{}'.format(self.name)
+
+
+
+
+
+
+
