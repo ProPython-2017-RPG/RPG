@@ -1,8 +1,8 @@
 import random
 # в качестве структур данных я брал словари
+__all__ = ['HelpClass', 'Hero', 'Enemy', 'Monster', 'Attack', 'Defence']
 
-
-class Player:
+class HelpClass:
     def __init__(self, heroes):
 
         self.heroes = heroes
@@ -21,6 +21,17 @@ class Hero:
         self.at_list = at_list  # кортеж с объектами Attack
         self.df_list = df_list  # кортеж с объектами Defense
         self.alive = True
+
+    def to_list(self, key: str):
+        return [
+            self.name, key, self.hp, self.hp, self.mp, self.mp, self.sp, self.sp,
+            self.at_list[0].name, self.at_list[0].size, self.at_list[0].cost,
+            self.at_list[0].atr_type, self.at_list[0].defense,
+            self.at_list[1].name, self.at_list[1].size, self.at_list[1].cost,
+            self.at_list[1].atr_type, self.at_list[1].defense,
+            self.df_list[0].name, self.df_list[0].size,
+            self.df_list[1].name, self.df_list[1].size
+        ]
 
     def __str__(self):
         return 'name:{},hp: {},mp: {},sp: {}'.format(self.name, self.hp, self.mp, self.sp)
@@ -100,7 +111,11 @@ class Monster:
 
     def attack(self, heroes):
         low_hp = sorted(heroes, key=lambda hro: hro.get_hp())[0:2] # рандомный выбор из двух героев с наименьшим хп
-        hero = random.choice(low_hp)
+        # Вот тут ошибка из-за пустого списка
+        try:
+            hero = random.choice(low_hp)
+        except IndexError:
+            raise IndexError
         print(hero)
         print('name: {} sp: {} mp: {}'.format(self.name, self.sp, self.mp))
         attack = self.choose_random_attack()

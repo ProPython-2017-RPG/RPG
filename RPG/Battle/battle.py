@@ -1,10 +1,12 @@
 import pygame
 from pygame import *
 import pyganim
-from classes import *
-from Runner import *
+from RPG.Battle.classes import *
+from RPG.Battle.Runner_for_battle import *
 import random
 
+__all__ = ['Bar','LocalUnit', 'Effect', 'BattleScene', 'move', 'vis_attack', 'vis_dead', 'vis_magic',
+           'choice', 'animation', 'reset', 'update_bars', 'create_heroes', 'create_enemies', 'check_life', 'main_loop']
 
 class Bar:
     def __init__(self, hero, width=90, height=4):
@@ -114,25 +116,25 @@ class BattleScene:
 
         # Visual effects
         self.death_act = False
-        self.death_animation = Effect('images/death.png', (100, 100), 96, 96, 12, 1)
+        self.death_animation = Effect('Battle/images/death.png', (100, 100), 96, 96, 12, 1)
 
         self.attack_act_hero = False
-        self.attack_animation_hero = Effect('images/fireball.png', (100, 100), 64, 64, 8, 1)
+        self.attack_animation_hero = Effect('Battle/images/fireball.png', (100, 100), 64, 64, 8, 1)
 
         self.attack_act_enemy = False
-        self.attack_animation_enemy = Effect('images/fireball_right.png', (100, 100), 64, 64, 8, 1)
+        self.attack_animation_enemy = Effect('Battle/images/fireball_right.png', (100, 100), 64, 64, 8, 1)
 
         self.magic_act = False
-        self.magic_animation = Effect('images/magic.png', (100, 100), 128, 128, 8, 7)
+        self.magic_animation = Effect('Battle/images/magic.png', (100, 100), 128, 128, 8, 7)
 
         # Pictures
         self.img_bg = pygame.image.load(self.img_bg)
         #self.img_bg = pygame.transform.scale(self.img_bg, self.screen.get_size())
-        self.img_menu = pygame.image.load('images/Frame_dial.png')
+        self.img_menu = pygame.image.load('Battle/images/Frame_dial.png')
         self.img_menu = pygame.transform.scale(self.img_menu, (self.screen.get_size()[0], 130))
-        self.img_cur = pygame.image.load('images/right_small.png')
+        self.img_cur = pygame.image.load('Battle/images/right_small.png')
         self.img_cur = pygame.transform.scale(self.img_cur, (35, 35))
-        self.img_cur_left = pygame.image.load('images/left_small.png')
+        self.img_cur_left = pygame.image.load('Battle/images/left_small.png')
         self.img_cur_left = pygame.transform.scale(self.img_cur_left, (35, 35))
 
         self.background = pygame.Surface(self.screen.get_size())
@@ -192,11 +194,11 @@ class BattleScene:
             if hero.visible:
                 if hero.state == 'wait':
                     hero.hero.move_conductor.stop()
-                    self.screen.blit(hero.hero.standing['left'], hero.hero.get_pos())
+                    self.screen.blit(hero.hero.standing[1], hero.hero.get_pos())
 
                 elif hero.state == 'move':
                     hero.hero.move_conductor.play()
-                    hero.hero.anim_objs['left'].blit(self.screen, hero.hero.get_pos())
+                    hero.hero.anim_objs[1].blit(self.screen, hero.hero.get_pos())
 
             i += 1
 
@@ -209,7 +211,7 @@ class BattleScene:
                 i += 1
 
         # Done button
-        done_button_surface = pygame.image.load('images/done_button.png')
+        done_button_surface = pygame.image.load('Battle/images/done_button.png')
         self.screen.blit(done_button_surface, (self.screen.get_size()[0] - 64, 20))
 
         # Enemies
@@ -261,7 +263,7 @@ def move(scene, hero, direction):
     timer = pygame.time.Clock()
 
     if hero == 'attack_animation':
-        if direction == 'left':
+        if direction == 1:
             for step in range(20):
                 scene.attack_animation_enemy.move(-4, 0)
                 scene.attack_animation_hero.move(-4, 0)
@@ -278,7 +280,7 @@ def move(scene, hero, direction):
                 timer.tick(60)
 
     elif hero == 'magic_animation':
-        if direction == 'left':
+        if direction == 1:
             for step in range(20):
                 scene.magic_animation.move(-4, 0)
                 scene.render()
@@ -293,7 +295,7 @@ def move(scene, hero, direction):
                 timer.tick(60)
 
     elif hero.type == 'hero':
-        if direction == 'left':
+        if direction == 1:
             print(hero.state)
             hero.state = 'move'
             print(hero.state)
@@ -318,7 +320,7 @@ def move(scene, hero, direction):
             pygame.display.update()
 
     else:
-        if direction == 'left':
+        if direction == 1:
             for step in range(20):
                 hero.hero.move(-4, 0)
                 scene.render()
@@ -335,12 +337,12 @@ def move(scene, hero, direction):
 
 def vis_attack(scene, hero):
     if hero.type == 'hero':
-        move(scene, hero, 'left')
+        move(scene, hero, 1)
 
         scene.attack_animation_hero.pos_x = hero.hero.get_pos()[0] - 40
         scene.attack_animation_hero.pos_y = hero.hero.get_pos()[1] - 5
         scene.attack_act_hero = True
-        move(scene, 'attack_animation', 'left')
+        move(scene, 'attack_animation', 1)
         scene.attack_act_hero = False
 
         move(scene, hero, 'right')
@@ -354,16 +356,16 @@ def vis_attack(scene, hero):
         move(scene, 'attack_animation', 'right')
         scene.attack_act_enemy = False
 
-        move(scene, hero, 'left')
+        move(scene, hero, 1)
 
 def vis_magic(scene, hero):
     if hero.type == 'hero':
-        move(scene, hero, 'left')
+        move(scene, hero, 1)
 
         scene.magic_animation.pos_x = hero.hero.get_pos()[0] - 70
         scene.magic_animation.pos_y = hero.hero.get_pos()[1] - 45
         scene.magic_act = True
-        move(scene, 'magic_animation', 'left')
+        move(scene, 'magic_animation', 1)
         scene.magic_act = False
 
         move(scene, hero, 'right')
@@ -377,7 +379,7 @@ def vis_magic(scene, hero):
         move(scene, 'magic_animation', 'right')
         scene.magic_act = False
 
-        move(scene, hero, 'left')
+        move(scene, hero, 1)
 
 
 def vis_dead(scene, hero):
@@ -546,7 +548,11 @@ def animation(scene, result, local_player):
             enemy = scene.enemies[1 - rand_enemy]
             j = 1
         if j < 2 and enemy.info.alive:
-            alive, hero_name, attack = enemy.info.attack(heroes=local_player.get_alive_heroes())
+            try:
+                alive, hero_name, attack = enemy.info.attack(heroes=local_player.get_alive_heroes())
+            except IndexError:
+                print('Index Error')
+                break
             if attack == 'ph_atk':
                 vis_attack(scene, enemy)
             elif attack == 'fire_atk':
@@ -618,7 +624,7 @@ def create_heroes():
 
 def create_enemies():
     # From classes.py
-    dragon_fire_atk = Attack(name='fire_atk', size=10, cost=5, atr_type='mp', defense='fire_def')
+    dragon_fire_atk = Attack(name='fire_atk', size=10, cost=20, atr_type='mp', defense='fire_def')
     dragon_ph_atk = Attack(name='ph_atk', size=20, cost=20, atr_type='sp', defense='ph_def')
 
     dragon_mag_def = Defence(name='mag_def', size=20)
@@ -632,13 +638,19 @@ def create_enemies():
     enemies_cl = (monster_1, monster_2)
 
     # From Runner.py
-    enemy_1 = BattleEnemy('images/enemies/reddragonfly.png', (300, 400), 200, 160, 4, 4)
-    enemy_2 = BattleEnemy('images/enemies/yellowdragonfly.png', (200, 500), 200, 160, 4, 4)
+    enemy_1 = BattleEnemy('Battle/images/enemies/reddragonfly.png', (300, 400), 200, 160, 4, 4)
+    enemy_2 = BattleEnemy('Battle/images/enemies/yellowdragonfly.png', (200, 500), 200, 160, 4, 4)
 
     enemies_run = (enemy_1, enemy_2)
 
     return (enemies_cl, enemies_run)
 
+
+def check_life(life_cl: list):
+    flag = False
+    for e in life_cl:
+        flag |= e.alive
+    return flag
 
 def main_loop():
     SCREEN_WIDTH = 1024
@@ -650,7 +662,7 @@ def main_loop():
 
     heroes = create_heroes()
     enemies = create_enemies()
-    local_player = Player(heroes[0])
+    local_player = HelpClass(heroes[0])
     scene = BattleScene(screen, 'images/bg.png', heroes, enemies)
 
     scene.render()
@@ -666,4 +678,4 @@ def main_loop():
         animation(scene, result, local_player)
         reset(scene, 10)
 
-main_loop()
+# main_loop()

@@ -1,4 +1,6 @@
 import pyganim
+__all__ = ['BattlePlayer', 'BattleEnemy']
+
 
 class BattlePlayer:
     def __init__(self, img, position=(16, 16), width=32, height=32, num=3, st=0):
@@ -16,11 +18,11 @@ class BattlePlayer:
             self.anim_objs[anim_type] = pyganim.PygAnimation(frames)
             i += 1
 
-            self.move_conductor = pyganim.PygConductor(self.anim_objs)
+        self.move_conductor = pyganim.PygConductor(self.anim_objs)
 
-            self.pos_x, self.pos_y = position
-            self.pos_x -= self.standing['front'].get_width() / 2
-            self.pos_y -= self.standing['front'].get_height() / 2
+        self.pos_x, self.pos_y = position
+        self.pos_x -= self.standing['front'].get_width() / 2
+        self.pos_y -= self.standing['front'].get_height() / 2
 
 
     def move(self, dx, dy):

@@ -113,10 +113,9 @@ class ResourceLoaderPyglet(tmxreader.AbstractResourceLoader):
         img = self._img_cache.get(filename, None)
         if img is None:
             if fileobj:
-                img = pyglet.image.load(filename, fileobj,
-                    pyglet.image.codecs.get_decoders("*.png")[0])
+                img = pyglet.image.load
             else:
-                img = pyglet.image.load(filename)
+                img = pyglet.image.load
             self._img_cache[filename] = img
         return img
 
