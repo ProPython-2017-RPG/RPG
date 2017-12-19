@@ -40,8 +40,8 @@ class TCP:
         self.run = True
 
     def close(self, sock: socket.socket, data: bytes):
-        print('Close', sock.getsockname())
-        logger.info('Close {}'.format(sock.getsockname()))
+        print('Close', sock.getpeername())
+        logger.info('Close {}'.format(sock.getpeername()))
         sock.close()
         del self.players[sock]
         for k in self.players.keys():
@@ -73,9 +73,10 @@ class TCP:
 
                 if tupl == 0:
                     user = User.create(user_login=login)
-                    logger.info("user created {}".format(login.decode("utf-8")))
+                    logger.info("New client has been created. Login: {}".format(login.decode("utf-8")))
                     sock.sendto((1).to_bytes(1, 'big'), sock.getpeername())  # в базе нет, логин создали
                 else:
+                    logger.info("db already has this name".format(login.decode("utf-8")))
                     sock.sendto((0).to_bytes(1, 'big'), sock.getpeername())  # в базе есть, ошибка
             elif label == 1:
                 # New

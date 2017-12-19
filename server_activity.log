@@ -1,1 +1,10 @@
-2017-12-19 12:41:27,914 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:18:14,566 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:18:21,324 - tcp_server - New client ('127.0.0.1', 27565)
+2017-12-19 13:18:47,409 - tcp_server - Close ('127.0.0.1', 27565)
+2017-12-19 13:21:13,243 - tcp_server - New client ('127.0.0.1', 27607)
+2017-12-19 13:21:42,705 - tcp_server - db already has this name
+2017-12-19 13:22:18,011 - tcp_server - New client ('127.0.0.1', 27631)
+2017-12-19 13:22:29,516 - tcp_server - New client has been created. Login: new_player3
+2017-12-19 13:24:27,594 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:24:29,722 - tcp_server - New client ('127.0.0.1', 27652)
+2017-12-19 13:24:56,402 - tcp_server - Close ('127.0.0.1', 27652)
