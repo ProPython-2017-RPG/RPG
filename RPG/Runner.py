@@ -154,7 +154,11 @@ class Game:
                  [Attack(*args[79:84]), Attack(*args[84:89])],
                  [Defence(*args[89:91]), Defence(*args[91:93])])
         ]
-        # self.current_player = Player(self.login, args[6])
+        self.current_player = Player(self.login, args[6])
+        for h in self.heroes:
+            if h.hp <= 0:
+                h.alive = False
+                h.hp = 0
         self.search_life_hero()
         self.current_player.pos_x = args[3]
         self.current_player.pos_y = args[4]
@@ -348,6 +352,9 @@ class Game:
         """
         database = sql.DB()
         save = database.all_save()
+        if len(save) == 0:
+            database.new_save(0, self.save_data())
+            return 'OK'
         save.sort(key=lambda x: x[0])
         key = ['noname',
                'actor100', 'actor101', 'actor102', 'actor103', 'actor104', 'actor105', 'actor106', 'actor107',
@@ -1294,5 +1301,4 @@ OK
 '''
 
 if __name__ == "__main__":
-    test()
-    # start_game()
+    start_game()

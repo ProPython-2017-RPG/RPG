@@ -19,7 +19,7 @@ CEN_Y = HEIGHT // 2 - 16
 PATH_TO_MAP = 'TilesMap/'
 PATH_TO_LOG = 'game.log'
 
-HOST = '127.0.0.1' # "188.226.185.13"
+HOST = "188.226.185.13"
 PORT_UDP = 17070
 PORT_TCP = 17071
 
