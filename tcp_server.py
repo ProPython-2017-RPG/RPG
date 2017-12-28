@@ -4,7 +4,7 @@ from peewee import *
 import logging
 from datetime import date
 
-HOST = '127.0.0.1'
+HOST = '0.0.0.0'
 PORT = 17071
 
 db = MySQLDatabase("admin_test",

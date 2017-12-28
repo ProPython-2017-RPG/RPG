@@ -8,3 +8,36 @@
 2017-12-19 13:24:27,594 - tcp_server - Starting TCP server on 127.0.0.1:17071
 2017-12-19 13:24:29,722 - tcp_server - New client ('127.0.0.1', 27652)
 2017-12-19 13:24:56,402 - tcp_server - Close ('127.0.0.1', 27652)
+2017-12-19 13:40:10,541 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:40:23,299 - tcp_server - New client ('127.0.0.1', 27939)
+2017-12-19 13:40:23,732 - tcp_server - New client has been created. Login: hello
+2017-12-19 13:41:25,870 - tcp_server - Close ('127.0.0.1', 27939)
+2017-12-19 13:43:40,291 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:43:46,432 - tcp_server - New client ('127.0.0.1', 27961)
+2017-12-19 13:43:46,766 - tcp_server - db already has this name
+2017-12-19 13:45:08,975 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:45:43,870 - tcp_server - New client ('127.0.0.1', 27976)
+2017-12-19 13:45:55,618 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:46:38,889 - tcp_server - New client ('127.0.0.1', 27990)
+2017-12-19 13:46:39,266 - tcp_server - New client has been created. Login: new1
+2017-12-19 13:47:09,112 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:47:42,372 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:47:54,315 - tcp_server - New client ('127.0.0.1', 27998)
+2017-12-19 13:47:54,606 - tcp_server - db already has this name
+2017-12-19 13:49:10,471 - tcp_server - Starting TCP server on 127.0.0.1:17071
+2017-12-19 13:49:20,670 - tcp_server - New client ('127.0.0.1', 28003)
+2017-12-19 13:49:21,094 - tcp_server - New client has been created. Login: first
+2017-12-19 13:51:30,830 - tcp_server - Close ('127.0.0.1', 28003)
+2017-12-19 17:59:00,239 - tcp_server - Starting TCP server on 0.0.0.0:17071
+2017-12-19 17:59:26,091 - tcp_server - New client ('127.0.0.1', 12402)
+2017-12-19 17:59:55,953 - tcp_server - Close ('127.0.0.1', 12402)
+2017-12-19 18:00:34,517 - tcp_server - New client ('127.0.0.1', 12418)
+2017-12-19 18:00:35,195 - tcp_server - New client has been created. Login: new
+2017-12-19 18:06:59,661 - tcp_server - Close ('127.0.0.1', 12418)
+2017-12-19 18:07:26,540 - tcp_server - New client ('127.0.0.1', 12441)
+2017-12-19 18:07:26,829 - tcp_server - db already has this name
+2017-12-19 18:08:12,440 - tcp_server - New client ('127.0.0.1', 12444)
+2017-12-19 18:08:13,230 - tcp_server - db already has this name
+2017-12-19 18:08:37,448 - tcp_server - New client ('127.0.0.1', 12446)
+2017-12-19 18:08:37,965 - tcp_server - New client has been created. Login: hello
+2017-12-28 15:48:26,186 - tcp_server - Starting TCP server on 0.0.0.0:17071
